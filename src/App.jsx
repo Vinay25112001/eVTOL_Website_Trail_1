@@ -1301,38 +1301,177 @@ export default function App(){
             {/* ──── TAB 1: MISSION ──── */}
             {tab===1&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                <Panel title="Power vs Mission Time" h={270}>
+
+                {/* KPI row */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8}}>
+                  {[
+                    ["Total Time",`${R.Tend}s`,C.muted],
+                    ["Total Energy",`${R.Etot} kWh`,C.teal],
+                    ["Peak Power",`${R.Phov} kW`,C.amber],
+                    ["Cruise Power",`${R.Pcr} kW`,C.blue],
+                    ["Cruise Speed",`${p.vCruise} m/s`,C.green],
+                    ["Range",`${p.range} km`,C.purple],
+                  ].map(([lbl,val,col])=>(
+                    <div key={lbl} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 10px",borderLeft:`2px solid ${col}`}}>
+                      <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>{lbl}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:col,fontFamily:"'DM Mono',monospace"}}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Power vs Time */}
+                <Panel title="Power vs Mission Time (kW)" h={270}>
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={R.powerSteps} margin={{top:5,right:10,left:-10,bottom:0}}>
+                    <AreaChart data={R.powerSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={C.amber} stopOpacity={0.4}/><stop offset="95%" stopColor={C.amber} stopOpacity={0.02}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
-                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"kW",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
-                      <Tooltip {...TTP}/>
-                      <Area type="stepAfter" dataKey="P" stroke={C.amber} strokeWidth={2} fill="url(#pg)" dot={false} name="Power (kW)"/>
-                      {R.tPhases.slice(1,-1).map((tp,i)=><ReferenceLine key={i} x={Math.round(tp)} stroke={PHC[i]} strokeDasharray="4 3" strokeWidth={1}/>)}
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Power (kW)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
+                      <Tooltip {...TTP} formatter={(v,n)=>[`${v} kW`,n]}/>
+                      <Area type="stepAfter" dataKey="P" stroke={C.amber} strokeWidth={2.5} fill="url(#pg)" dot={false} name="Power (kW)"/>
+                      {R.tPhases.slice(1,-1).map((tp,i)=>(
+                        <ReferenceLine key={i} x={Math.round(tp)} stroke={PHC[i]} strokeDasharray="4 3" strokeWidth={1.5}
+                          label={{value:["Climb","Cruise","Desc","Land","Res"][i],fill:PHC[i],fontSize:9,position:"top"}}/>
+                      ))}
                     </AreaChart>
                   </ResponsiveContainer>
                 </Panel>
-                <Panel title="Velocity vs Mission Time" h={230}>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={R.velSteps} margin={{top:5,right:10,left:-10,bottom:0}}>
-                      <defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={C.teal} stopOpacity={0.4}/><stop offset="95%" stopColor={C.teal} stopOpacity={0.02}/>
+
+                {/* Energy vs Time — NEW */}
+                <Panel title="Cumulative Energy Consumed vs Mission Time (kWh)" h={270}>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={R.energySteps} margin={{top:5,right:16,left:-5,bottom:16}}>
+                      <defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={C.teal} stopOpacity={0.45}/><stop offset="95%" stopColor={C.teal} stopOpacity={0.02}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
-                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"m/s",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
-                      <Tooltip {...TTP}/>
-                      <Area type="stepAfter" dataKey="V" stroke={C.teal} strokeWidth={2} fill="url(#vg)" dot={false} name="Speed (m/s)"/>
-                      <ReferenceLine y={p.vCruise} stroke={C.blue} strokeDasharray="4 3" label={{value:"Vcr",fill:C.blue,fontSize:11}}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Energy (kWh)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
+                      <Tooltip {...TTP} formatter={(v,n)=>[`${v} kWh`,n]}/>
+                      <Area type="monotone" dataKey="E" stroke={C.teal} strokeWidth={2.5} fill="url(#eg)" dot={false} name="Cumulative Energy (kWh)"/>
+                      <ReferenceLine y={R.Etot} stroke={C.green} strokeDasharray="5 3"
+                        label={{value:`Total: ${R.Etot} kWh`,fill:C.green,fontSize:10,position:"insideTopRight"}}/>
+                      <ReferenceLine y={R.PackkWh} stroke={C.amber} strokeDasharray="5 3"
+                        label={{value:`Pack: ${R.PackkWh} kWh`,fill:C.amber,fontSize:10,position:"insideBottomRight"}}/>
+                      {R.tPhases.slice(1,-1).map((tp,i)=>(
+                        <ReferenceLine key={i} x={Math.round(tp)} stroke={PHC[i]} strokeDasharray="4 3" strokeWidth={1.5}
+                          label={{value:["Climb","Cruise","Desc","Land","Res"][i],fill:PHC[i],fontSize:9,position:"top"}}/>
+                      ))}
                     </AreaChart>
                   </ResponsiveContainer>
                 </Panel>
+
+                {/* Velocity vs Time */}
+                <Panel title="Velocity vs Mission Time (m/s)" h={230}>
+                  <ResponsiveContainer width="100%" height={185}>
+                    <AreaChart data={R.velSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
+                      <defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={C.blue} stopOpacity={0.4}/><stop offset="95%" stopColor={C.blue} stopOpacity={0.02}/>
+                      </linearGradient></defs>
+                      <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Speed (m/s)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
+                      <Tooltip {...TTP} formatter={(v,n)=>[`${v} m/s`,n]}/>
+                      <Area type="stepAfter" dataKey="V" stroke={C.blue} strokeWidth={2.5} fill="url(#vg)" dot={false} name="Speed (m/s)"/>
+                      <ReferenceLine y={p.vCruise} stroke={C.amber} strokeDasharray="4 3"
+                        label={{value:`Vcr = ${p.vCruise} m/s`,fill:C.amber,fontSize:10,position:"insideTopRight"}}/>
+                      {R.tPhases.slice(1,-1).map((tp,i)=>(
+                        <ReferenceLine key={i} x={Math.round(tp)} stroke={PHC[i]} strokeDasharray="4 3" strokeWidth={1}/>
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Panel>
+
+                {/* Phase Power vs Phase Energy vs Phase Time — NEW grouped bar chart */}
+                <Panel title="Phase Comparison — Power (kW) · Energy (kWh) · Duration (s)">
+                  <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8,paddingLeft:4}}>
+                    Grouped bars show the three key metrics for each mission phase. Each metric is normalised relative to its maximum value so all three can be compared on the same axis.
+                    Raw values shown in the data table below.
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart
+                      data={[
+                        {ph:"T/O",    power:+(R.Phov/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1), energy:+(R.Eto/R.Etot*100).toFixed(1),  time:+(R.tto/R.Tend*100).toFixed(1)},
+                        {ph:"Climb",  power:+(R.Pcl/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1),  energy:+(R.Ecl/R.Etot*100).toFixed(1),  time:+(R.tcl/R.Tend*100).toFixed(1)},
+                        {ph:"Cruise", power:+(R.Pcr/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1),  energy:+(R.Ecr/R.Etot*100).toFixed(1),  time:+(R.tcr/R.Tend*100).toFixed(1)},
+                        {ph:"Descent",power:+(R.Pdc/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1),  energy:+(R.Edc/R.Etot*100).toFixed(1),  time:+(R.tdc/R.Tend*100).toFixed(1)},
+                        {ph:"Land",   power:+(R.Phov/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1), energy:+(R.Eld/R.Etot*100).toFixed(1),  time:+(R.tld/R.Tend*100).toFixed(1)},
+                        {ph:"Reserve",power:+(R.Pres/Math.max(R.Phov,R.Pcl,R.Pcr,R.Pdc,R.Pres)*100).toFixed(1), energy:+(R.Eres/R.Etot*100).toFixed(1), time:+(R.tres/R.Tend*100).toFixed(1)},
+                      ]}
+                      margin={{top:5,right:20,left:-10,bottom:0}}>
+                      <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                      <XAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"% of max",angle:-90,position:"insideLeft",offset:14,fontSize:11,fill:"#94a3b8"}} domain={[0,110]}/>
+                      <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
+                      <Legend iconSize={9} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
+                      <Bar dataKey="power" name="Power (% of peak)" fill={C.amber} radius={[3,3,0,0]} maxBarSize={28}/>
+                      <Bar dataKey="energy" name="Energy (% of total)" fill={C.teal} radius={[3,3,0,0]} maxBarSize={28}/>
+                      <Bar dataKey="time" name="Duration (% of total)" fill={C.blue} radius={[3,3,0,0]} maxBarSize={28}/>
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  {/* Raw data table below the chart */}
+                  <div style={{overflowX:"auto",marginTop:12}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
+                      <thead>
+                        <tr style={{background:"#111927"}}>
+                          {["Phase","Power (kW)","Energy (kWh)","Duration (s)","% Total E","% Total Time"].map(h=>(
+                            <th key={h} style={{padding:"5px 10px",textAlign:"right",color:C.muted,fontSize:8,fontWeight:600,letterSpacing:"0.05em",
+                              textTransform:"uppercase",":first-child":{textAlign:"left"}}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          ["🛫 Takeoff",R.Phov,R.Eto,R.tto,PHC[0]],
+                          ["📈 Climb",R.Pcl,R.Ecl,R.tcl,PHC[1]],
+                          ["✈️ Cruise",R.Pcr,R.Ecr,R.tcr,PHC[2]],
+                          ["📉 Descent",R.Pdc,R.Edc,R.tdc,PHC[3]],
+                          ["🛬 Landing",R.Phov,R.Eld,R.tld,PHC[4]],
+                          ["🔄 Reserve",R.Pres,R.Eres,R.tres,PHC[5]],
+                        ].map(([ph,pw,e,t,col],i)=>(
+                          <tr key={i} style={{borderTop:`1px solid ${C.border}`,background:i%2?"#0a0d14":C.bg}}>
+                            <td style={{padding:"5px 10px",color:C.text,fontWeight:600}}>{ph}</td>
+                            <td style={{padding:"5px 10px",color:C.amber,textAlign:"right"}}>{pw}</td>
+                            <td style={{padding:"5px 10px",color:C.teal,textAlign:"right"}}>{e}</td>
+                            <td style={{padding:"5px 10px",color:C.blue,textAlign:"right"}}>{t}</td>
+                            <td style={{padding:"5px 10px",textAlign:"right"}}>
+                              <div style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                                <div style={{width:40,height:5,background:C.border,borderRadius:2}}>
+                                  <div style={{width:`${(e/R.Etot*100).toFixed(0)}%`,height:"100%",background:col,borderRadius:2}}/>
+                                </div>
+                                <span style={{color:col,minWidth:32}}>{(e/R.Etot*100).toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td style={{padding:"5px 10px",textAlign:"right"}}>
+                              <div style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                                <div style={{width:40,height:5,background:C.border,borderRadius:2}}>
+                                  <div style={{width:`${(t/R.Tend*100).toFixed(0)}%`,height:"100%",background:C.muted,borderRadius:2}}/>
+                                </div>
+                                <span style={{color:C.muted,minWidth:32}}>{(t/R.Tend*100).toFixed(1)}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Totals row */}
+                        <tr style={{borderTop:`2px solid ${C.border}`,background:"#111927"}}>
+                          <td style={{padding:"6px 10px",color:C.text,fontWeight:700}}>TOTAL</td>
+                          <td style={{padding:"6px 10px",color:C.amber,textAlign:"right",fontWeight:700}}>—</td>
+                          <td style={{padding:"6px 10px",color:C.teal,textAlign:"right",fontWeight:700}}>{R.Etot}</td>
+                          <td style={{padding:"6px 10px",color:C.blue,textAlign:"right",fontWeight:700}}>{R.Tend}</td>
+                          <td style={{padding:"6px 10px",color:C.muted,textAlign:"right",fontWeight:700}}>100%</td>
+                          <td style={{padding:"6px 10px",color:C.muted,textAlign:"right",fontWeight:700}}>100%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </Panel>
+
+                {/* Phase Duration + Energy Radar */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Phase Duration" h={240}>
+                  <Panel title="Phase Duration (s)" h={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <PieChart>
                         <Pie data={[{n:"T/O",v:R.tto},{n:"Climb",v:R.tcl},{n:"Cruise",v:R.tcr},{n:"Descent",v:R.tdc},{n:"Land",v:R.tld},{n:"Reserve",v:R.tres}]}
@@ -1340,23 +1479,26 @@ export default function App(){
                           {PHC.map((c,i)=><Cell key={i} fill={c}/>)}
                         </Pie>
                         <Tooltip {...TTP} formatter={(v)=>[`${v} s`,"Duration"]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:12,color:"#94a3b8"}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Energy Radar" h={240}>
+                  <Panel title="Energy per Phase — Radar (kWh)" h={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <RadarChart data={[{ph:"T/O",E:R.Eto},{ph:"Climb",E:R.Ecl},{ph:"Cruise",E:R.Ecr},{ph:"Desc",E:R.Edc},{ph:"Land",E:R.Eld},{ph:"Res",E:R.Eres}]}>
                         <PolarGrid stroke={C.border}/>
                         <PolarAngleAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
-                        <Radar dataKey="E" stroke={C.teal} fill={C.teal} fillOpacity={0.2} name="kWh"/>
-                        <Tooltip {...TTP}/>
+                        <Radar dataKey="E" stroke={C.teal} fill={C.teal} fillOpacity={0.25} name="Energy (kWh)"/>
+                        <Tooltip {...TTP} formatter={(v)=>[`${v} kWh`,"Energy"]}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                       </RadarChart>
                     </ResponsiveContainer>
                   </Panel>
                 </div>
+
               </div>
             )}
+
 
             {/* ──── TAB 2: WING & AERO ──── */}
             {tab===2&&(
