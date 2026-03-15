@@ -33,7 +33,26 @@ const fmtTime = (iso) => {
   return d.toLocaleDateString();
 };
 
-/* ── Mock OTP store (in-memory) ── */
+/* ── EmailJS config ── */
+const EJS_SERVICE  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EJS_TEMPLATE = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const EJS_KEY      = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+async function sendOTPEmail(toEmail, otpCode) {
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id:  EJS_SERVICE,
+      template_id: EJS_TEMPLATE,
+      user_id:     EJS_KEY,
+      template_params: { to_email: toEmail, otp_code: otpCode },
+    }),
+  });
+  if (!res.ok) throw new Error("Email send failed");
+}
+
+/* ── OTP store (in-memory) ── */
 const otpStore = {};
 function generateOTP(email) {
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -291,13 +310,16 @@ function AuthModal({ onClose, onAuth, defaultFlow = "login" }) {
     reset();
     if (!email.includes("@")) return setErr("Enter a valid email.");
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const code = generateOTP(email);
-    setOtpCode(code); // mock: display since no real email service
-    setOtpSent(true);
-    startTimer();
+    try {
+      const code = generateOTP(email);
+      await sendOTPEmail(email, code);
+      setOtpSent(true);
+      startTimer();
+      setInfo(`OTP sent to ${email}! Check your inbox (and spam folder).`);
+    } catch (e) {
+      setErr("Failed to send OTP email. Please try again.");
+    }
     setLoading(false);
-    setInfo("OTP sent! Check your email. (Demo: code shown below)");
   };
 
   /* ── VERIFY OTP ── */
@@ -524,12 +546,10 @@ function AuthModal({ onClose, onAuth, defaultFlow = "login" }) {
               <Btn variant="primary" fullWidth onClick={handleSendOTP} loading={loading}>Send OTP →</Btn>
             ) : (
               <>
-                <div style={{ fontSize: 11, color: C.green, fontFamily: "'DM Mono',monospace", textAlign: "center", marginBottom: 4 }}>
-                  Code sent to {email}
+                <div style={{ background: `${C.green}11`, border: `1px solid ${C.green}44`, borderRadius: 6, padding: "10px 14px", marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: C.green, fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>✓ OTP sent to {email}</div>
+                  <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace", marginTop: 3 }}>Check your inbox and spam folder. Code expires in 5 minutes.</div>
                 </div>
-                {otpCode && (
-                  <Alert type="info">Demo mode — your OTP is: <strong style={{ color: C.amber, fontSize: 16, letterSpacing: "0.2em" }}>{otpCode}</strong></Alert>
-                )}
                 <OTPInput value={otp} onChange={setOtp} />
                 <Btn variant="primary" fullWidth onClick={handleVerifyOTP} loading={loading}>Verify Code →</Btn>
                 <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: C.muted, fontFamily: "'DM Mono',monospace" }}>
