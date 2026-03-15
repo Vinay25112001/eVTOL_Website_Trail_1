@@ -30,7 +30,7 @@ const fmtTime = (iso) => {
 
 
 /* ── EmailJS config ── */
-const EJS_SERVICE  = "service_Ir9esnm";
+const EJS_SERVICE  = "service_lr9esnm";
 const EJS_TEMPLATE = "template_g6lhbyl";
 const EJS_KEY      = "xdMM2-AaS1VGWJSaa";
 
