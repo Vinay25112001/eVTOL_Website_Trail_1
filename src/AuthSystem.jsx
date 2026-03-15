@@ -354,11 +354,6 @@ function AuthModal({ onClose, onAuth, defaultFlow = "login" }) {
     setLoading(false);
     onAuth(session);
   };
-    saveSession(session);
-    addNotif(user.id, { title: "OTP Login Successful", body: "You signed in via one-time code.", type: "success" });
-    setLoading(false);
-    onAuth(session);
-  };
 
   /* ── ORG / SSO LOGIN ── */
   const handleOrgLogin = async () => {
