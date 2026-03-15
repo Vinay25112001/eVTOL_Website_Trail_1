@@ -84,6 +84,41 @@ function addNotif(id,{title,body,type="info"}){
   saveNotifs(id,n.slice(0,50));
 }
 
+/* ── Designs DB ── */
+function getDesigns(userId){ try{return JSON.parse(localStorage.getItem(`evtol_designs_${userId}`)||"[]");}catch{return[];} }
+function saveDesigns(userId,d){ localStorage.setItem(`evtol_designs_${userId}`,JSON.stringify(d)); }
+function saveDesign(userId,{name,params,results,pdfHtml}){
+  const designs=getDesigns(userId);
+  designs.unshift({id:uid(),name,params,results,pdfHtml,savedAt:nowISO()});
+  saveDesigns(userId,designs.slice(0,20)); // max 20 saved designs
+}
+
+/* ── Report History DB ── */
+function getReports(userId){ try{return JSON.parse(localStorage.getItem(`evtol_reports_${userId}`)||"[]");}catch{return[];} }
+function saveReports(userId,r){ localStorage.setItem(`evtol_reports_${userId}`,JSON.stringify(r)); }
+function addReport(userId,{name,params,results,pdfHtml}){
+  const reports=getReports(userId);
+  reports.unshift({id:uid(),name,params,results,pdfHtml,generatedAt:nowISO()});
+  saveReports(userId,reports.slice(0,30));
+}
+
+/* ── Get full user from storage ── */
+function getFullUser(email){
+  const users=getUsers();
+  return users[email?.toLowerCase()]||null;
+}
+
+/* ── Fix session name — handle old/missing firstName/lastName ── */
+function buildDisplayName(u){
+  if(!u) return "User";
+  const fn=u.firstName||"";
+  const ln=u.lastName||"";
+  const full=`${fn} ${ln}`.trim();
+  if(full) return full;
+  if(u.name&&u.name!=="undefined undefined") return u.name;
+  return u.email?.split("@")[0]||"User";
+}
+
 /* ══════════════════════════════════════════════════════════════
    UI PRIMITIVES
    ══════════════════════════════════════════════════════════════ */
@@ -420,11 +455,15 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
   const handleOTPVerified=()=>{
     const u=pendingUser.current;
     if(!u) return;
-    const session={id:u.id,name:`${u.firstName} ${u.lastName}`.trim()||u.email,
-      email:u.email,mobile:u.mobile||null,org:u.org||null,
-      avatar:(u.firstName||u.email)[0].toUpperCase(),token:uid()};
+    const displayName=buildDisplayName(u);
+    const session={
+      id:u.id, name:displayName,
+      firstName:u.firstName||"", lastName:u.lastName||"",
+      email:u.email, mobile:u.mobile||null, org:u.org||null,
+      avatar:displayName[0].toUpperCase(), token:uid()
+    };
     saveSession(session);
-    addNotif(u.id,{title:"Login Successful",body:`Welcome back, ${u.firstName||""}! OTP verified.`,type:"success"});
+    addNotif(u.id,{title:"Login Successful",body:`Welcome back, ${u.firstName||displayName}! OTP verified.`,type:"success"});
     onAuth(session);
   };
 
@@ -828,65 +867,402 @@ function NotifCenter({user,onClose}){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PROFILE DROPDOWN
+   POPUP MODAL WRAPPER — reusable professional popup
    ══════════════════════════════════════════════════════════════ */
-function ProfileDropdown({user,onSignOut,onClose}){
-  const session=getSession();
-  const users=getUsers();
-  const fullUser=session?users[session.email]:null;
+function Popup({title,subtitle,onClose,children,width=520}){
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:2000,background:"rgba(7,9,15,0.88)",
+      backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <style>{`@keyframes popIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}`}</style>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,
+        width,maxWidth:"95vw",maxHeight:"90vh",display:"flex",flexDirection:"column",
+        boxShadow:"0 24px 80px rgba(0,0,0,0.7)",animation:"popIn 0.2s ease"}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+          padding:"16px 20px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div>
+            <div style={{fontSize:8,color:C.muted,letterSpacing:"0.18em",fontFamily:"'DM Mono',monospace",marginBottom:3,textTransform:"uppercase"}}>AEROSPACE DESIGN SUITE</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text,letterSpacing:"-0.02em"}}>
+              <span style={{color:C.amber}}>eVTOL</span> <span style={{color:C.muted,fontWeight:400,fontSize:12}}>—</span> {title}
+            </div>
+            {subtitle&&<div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginTop:2}}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} type="button"
+            style={{background:`${C.border}`,border:`1px solid ${C.border}`,borderRadius:6,
+              color:C.muted,fontSize:14,cursor:"pointer",padding:"6px 10px",lineHeight:1,
+              fontFamily:"'DM Mono',monospace",transition:"all 0.15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.background=`${C.red}22`;e.currentTarget.style.color=C.red;}}
+            onMouseLeave={e=>{e.currentTarget.style.background=C.border;e.currentTarget.style.color=C.muted;}}>
+            ✕ Close
+          </button>
+        </div>
+        {/* Content */}
+        <div style={{overflowY:"auto",flex:1,padding:"20px"}}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const items=[
-    {icon:"👤",label:"Profile",action:()=>{
-      if(fullUser) alert(`Name: ${fullUser.firstName} ${fullUser.lastName}\nEmail: ${fullUser.email}\nMobile: ${fullUser.mobile||"Not set"}\nUsername: ${fullUser.username}\nOrg: ${fullUser.org||"Not set"}\nJoined: ${new Date(fullUser.createdAt).toLocaleDateString()}`);
-      onClose();
-    }},
-    {icon:"📐",label:"My Designs",action:()=>{alert("Saved designs — coming soon!");onClose();}},
-    {icon:"🔑",label:"Change Password",action:()=>{alert("Change password — coming soon!");onClose();}},
-    {icon:"📄",label:"Report History",action:()=>{alert("Report history — coming soon!");onClose();}},
+/* ── Profile Modal ── */
+function ProfileModal({user,onClose,onUpdate}){
+  const fu=getFullUser(user.email);
+  const[firstName,setFirstName]=useState(fu?.firstName||"");
+  const[lastName,setLastName]=useState(fu?.lastName||"");
+  const[mobile,setMobile]=useState(fu?.mobile||"");
+  const[org,setOrg]=useState(fu?.org||"");
+  const[saving,setSaving]=useState(false);
+  const[saved,setSaved]=useState(false);
+  const[showPwSection,setShowPwSection]=useState(false);
+  const[oldPw,setOldPw]=useState("");
+  const[newPw,setNewPw]=useState("");
+  const[newPw2,setNewPw2]=useState("");
+  const[pwErr,setPwErr]=useState("");
+  const[pwOk,setPwOk]=useState("");
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await new Promise(r=>setTimeout(r,400));
+    const users=getUsers();
+    const u=users[user.email];
+    if(u){
+      users[user.email]={...u,firstName:firstName.trim(),lastName:lastName.trim(),mobile:mobile.trim()||null,org:org.trim()||null};
+      saveUsers(users);
+      const newName=buildDisplayName({firstName:firstName.trim(),lastName:lastName.trim(),email:user.email});
+      const updatedSession={...getSession(),name:newName,firstName:firstName.trim(),lastName:lastName.trim(),mobile:mobile.trim()||null,org:org.trim()||null,avatar:newName[0].toUpperCase()};
+      saveSession(updatedSession);
+      onUpdate(updatedSession);
+      addNotif(user.id,{title:"Profile Updated",body:"Your profile details have been saved.",type:"success"});
+    }
+    setSaving(false); setSaved(true);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  const handlePasswordChange=async()=>{
+    setPwErr(""); setPwOk("");
+    const users=getUsers();
+    const u=users[user.email];
+    if(!u) return setPwErr("Account not found.");
+    if(u.pwHash!==btoa(oldPw)) return setPwErr("Current password is incorrect.");
+    if(newPw.length<8) return setPwErr("New password must be ≥ 8 characters.");
+    if(newPw!==newPw2) return setPwErr("New passwords do not match.");
+    users[user.email]={...u,pwHash:btoa(newPw)};
+    saveUsers(users);
+    addNotif(user.id,{title:"Password Changed",body:"Your password has been updated successfully.",type:"success"});
+    setPwOk("✓ Password changed successfully!");
+    setOldPw(""); setNewPw(""); setNewPw2("");
+    setTimeout(()=>setShowPwSection(false),1500);
+  };
+
+  const fields=[
+    {label:"First Name",value:firstName,set:setFirstName,placeholder:"Jane"},
+    {label:"Last Name",value:lastName,set:setLastName,placeholder:"Smith"},
+    {label:"Email Address",value:user.email,set:()=>{},placeholder:"",disabled:true},
+    {label:"Mobile Number",value:mobile,set:setMobile,placeholder:"+1 234 567 8900"},
+    {label:"Organization",value:org,set:setOrg,placeholder:"Wright State University"},
+    {label:"Username",value:fu?.username||"",set:()=>{},placeholder:"",disabled:true},
   ];
 
   return(
-    <div style={{position:"absolute",top:"100%",right:0,zIndex:200,marginTop:8,
-      background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
-      width:260,boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
-      {/* User info */}
-      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:38,height:38,borderRadius:"50%",
-            background:`linear-gradient(135deg,${C.amber},#f97316)`,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:16,fontWeight:800,color:"#07090f",flexShrink:0}}>
-            {user.avatar}
-          </div>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{user.name}</div>
-            <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{user.email}</div>
-            {fullUser?.mobile&&<div style={{fontSize:9,color:C.teal,fontFamily:"'DM Mono',monospace"}}>📱 {fullUser.mobile}</div>}
-            {user.org&&<div style={{fontSize:9,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {user.org}</div>}
-            {fullUser?.username&&<div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fullUser.username}</div>}
-          </div>
+    <Popup title="My Profile" subtitle={`Joined ${fu?.createdAt?new Date(fu.createdAt).toLocaleDateString():"—"}`} onClose={onClose} width={480}>
+      {/* Avatar */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,padding:"16px",background:C.bg,borderRadius:10,border:`1px solid ${C.border}`}}>
+        <div style={{width:56,height:56,borderRadius:"50%",background:`linear-gradient(135deg,${C.amber},#f97316)`,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:800,color:"#07090f",flexShrink:0}}>
+          {(firstName[0]||user.avatar||"?").toUpperCase()}
+        </div>
+        <div>
+          <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{firstName} {lastName}</div>
+          <div style={{fontSize:11,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{user.email}</div>
+          {fu?.username&&<div style={{fontSize:10,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fu.username}</div>}
         </div>
       </div>
-      {items.map(item=>(
-        <button key={item.label} onClick={item.action} type="button"
-          style={{width:"100%",padding:"9px 16px",background:"none",border:"none",
-            display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left",
-            borderBottom:`1px solid ${C.border}22`}}
-          onMouseEnter={e=>e.currentTarget.style.background="#ffffff08"}
-          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <span style={{fontSize:13}}>{item.icon}</span>
-          <span style={{fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace"}}>{item.label}</span>
-        </button>
-      ))}
-      <button onClick={onSignOut} type="button"
-        style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
-          display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}
-        onMouseEnter={e=>e.currentTarget.style.background=`${C.red}11`}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <span style={{fontSize:13}}>🚪</span>
-        <span style={{fontSize:11,color:C.red,fontFamily:"'DM Mono',monospace",fontWeight:700}}>Sign Out</span>
+
+      {/* Fields */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+        {fields.map(({label,value,set,placeholder,disabled})=>(
+          <div key={label}>
+            <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
+            <input value={value} onChange={e=>set(e.target.value)} placeholder={placeholder} disabled={disabled} type="text"
+              style={{width:"100%",boxSizing:"border-box",background:disabled?"#0a0d14":C.bg,
+                border:`1px solid ${disabled?C.border+"88":C.border}`,borderRadius:6,color:disabled?C.muted:C.text,
+                fontSize:12,padding:"9px 12px",fontFamily:"'DM Mono',monospace",outline:"none",
+                opacity:disabled?0.6:1}}
+              onFocus={e=>{if(!disabled)e.target.style.borderColor=C.amber;}}
+              onBlur={e=>{if(!disabled)e.target.style.borderColor=C.border;}}
+            />
+          </div>
+        ))}
+      </div>
+
+      <button onClick={handleSave} disabled={saving} type="button"
+        style={{width:"100%",padding:"10px",background:saved?`linear-gradient(135deg,${C.green},#16a34a)`:`linear-gradient(135deg,${C.amber},#f97316)`,
+          border:"none",borderRadius:6,color:"#07090f",fontSize:13,fontWeight:700,cursor:saving?"not-allowed":"pointer",
+          fontFamily:"'DM Mono',monospace",marginBottom:16,transition:"background 0.3s"}}>
+        {saving?"Saving...":saved?"✓ Saved!":"Save Changes"}
       </button>
-    </div>
+
+      {/* Change password */}
+      <div style={{borderTop:`1px solid ${C.border}`,paddingTop:16}}>
+        <button onClick={()=>setShowPwSection(s=>!s)} type="button"
+          style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,
+            color:C.text,fontSize:12,cursor:"pointer",padding:"8px 16px",fontFamily:"'DM Mono',monospace",fontWeight:600,marginBottom:showPwSection?12:0}}>
+          🔑 {showPwSection?"Hide":"Change Password"}
+        </button>
+        {showPwSection&&(
+          <div style={{background:C.bg,borderRadius:8,padding:14,border:`1px solid ${C.border}`}}>
+            {pwErr&&<div style={{color:C.red,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:8}}>✗ {pwErr}</div>}
+            {pwOk&&<div style={{color:C.green,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:8}}>{pwOk}</div>}
+            {[["Current Password",oldPw,setOldPw],["New Password",newPw,setNewPw],["Confirm New Password",newPw2,setNewPw2]].map(([lbl,val,setVal])=>(
+              <div key={lbl} style={{marginBottom:10}}>
+                <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,textTransform:"uppercase"}}>{lbl}</div>
+                <input type="password" value={val} onChange={e=>setVal(e.target.value)} placeholder="••••••••"
+                  style={{width:"100%",boxSizing:"border-box",background:"#0a0d14",border:`1px solid ${C.border}`,
+                    borderRadius:6,color:C.text,fontSize:12,padding:"8px 12px",fontFamily:"'DM Mono',monospace",outline:"none"}}
+                  onFocus={e=>e.target.style.borderColor=C.amber}
+                  onBlur={e=>e.target.style.borderColor=C.border}/>
+              </div>
+            ))}
+            <button onClick={handlePasswordChange} type="button"
+              style={{background:C.blue,border:"none",borderRadius:6,color:"#fff",fontSize:12,
+                fontWeight:700,cursor:"pointer",padding:"8px 20px",fontFamily:"'DM Mono',monospace"}}>
+              Update Password
+            </button>
+          </div>
+        )}
+      </div>
+    </Popup>
+  );
+}
+
+/* ── My Designs Modal ── */
+function MyDesignsModal({user,onClose}){
+  const[designs,setDesigns]=useState(()=>getDesigns(user.id));
+  const[confirm,setConfirm]=useState(null);
+
+  const handleDelete=(id)=>{
+    const updated=designs.filter(d=>d.id!==id);
+    setDesigns(updated);
+    saveDesigns(user.id,updated);
+    setConfirm(null);
+  };
+
+  const handleDownload=(d)=>{
+    if(!d.pdfHtml){ alert("No PDF saved for this design. Re-save it from the main app."); return; }
+    const w=window.open("","_blank");
+    w.document.write(d.pdfHtml);
+    w.document.close();
+    addNotif(user.id,{title:"Report Opened",body:`PDF report for "${d.name}" opened.`,type:"info"});
+  };
+
+  return(
+    <Popup title="My Designs" subtitle={`${designs.length} saved design${designs.length!==1?"s":""}`} onClose={onClose} width={580}>
+      {designs.length===0?(
+        <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:16}}>✈️</div>
+          <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8}}>No saved designs yet</div>
+          <div style={{fontSize:12,color:C.muted,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+            Click the <span style={{color:C.amber,fontWeight:700}}>💾 Save Design</span> button in the main app<br/>to save your current design here.
+          </div>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {designs.map(d=>(
+            <div key={d.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px"}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",marginBottom:4,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
+                  <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
+                    Saved {fmtTime(d.savedAt)}
+                  </div>
+                  {d.results&&(
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {[
+                        ["MTOW",d.results.MTOW+"kg",C.amber],
+                        ["Energy",d.results.Etot+"kWh",C.teal],
+                        ["Hover",d.results.Phov+"kW",C.blue],
+                        ["L/D",d.results.LDact,C.green],
+                      ].map(([lbl,val,col])=>(
+                        <div key={lbl} style={{background:`${col}11`,border:`1px solid ${col}33`,borderRadius:4,padding:"2px 8px"}}>
+                          <span style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{lbl}: </span>
+                          <span style={{fontSize:9,color:col,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>handleDownload(d)} type="button"
+                    style={{padding:"6px 12px",background:`linear-gradient(135deg,#1e3a5f,#1e40af)`,
+                      border:`1px solid ${C.blue}`,borderRadius:6,color:"#93c5fd",fontSize:10,
+                      cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:700}}>
+                    ⬇ PDF
+                  </button>
+                  <button onClick={()=>setConfirm(d.id)} type="button"
+                    style={{padding:"6px 10px",background:"transparent",border:`1px solid ${C.red}44`,
+                      borderRadius:6,color:C.red,fontSize:10,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                    🗑
+                  </button>
+                </div>
+              </div>
+              {confirm===d.id&&(
+                <div style={{marginTop:10,padding:"10px 12px",background:`${C.red}11`,border:`1px solid ${C.red}44`,borderRadius:6,
+                  display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                  <span style={{fontSize:11,color:C.red,fontFamily:"'DM Mono',monospace"}}>Delete "{d.name}"?</span>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>handleDelete(d.id)} type="button"
+                      style={{padding:"4px 12px",background:C.red,border:"none",borderRadius:4,color:"#fff",fontSize:10,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:700}}>
+                      Delete
+                    </button>
+                    <button onClick={()=>setConfirm(null)} type="button"
+                      style={{padding:"4px 12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:4,color:C.muted,fontSize:10,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Popup>
+  );
+}
+
+/* ── Report History Modal ── */
+function ReportHistoryModal({user,onClose}){
+  const[reports,setReports]=useState(()=>getReports(user.id));
+
+  const handleOpen=(r)=>{
+    if(!r.pdfHtml){ alert("PDF not available for this report."); return; }
+    const w=window.open("","_blank");
+    w.document.write(r.pdfHtml);
+    w.document.close();
+  };
+
+  const handleDelete=(id)=>{
+    const updated=reports.filter(r=>r.id!==id);
+    setReports(updated);
+    saveReports(user.id,updated);
+  };
+
+  return(
+    <Popup title="Report History" subtitle={`${reports.length} report${reports.length!==1?"s":""} generated`} onClose={onClose} width={580}>
+      {reports.length===0?(
+        <div style={{textAlign:"center",padding:"48px 0"}}>
+          <div style={{fontSize:48,marginBottom:16}}>📄</div>
+          <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8}}>No reports yet</div>
+          <div style={{fontSize:12,color:C.muted,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+            Click <span style={{color:C.blue,fontWeight:700}}>⬇ PDF REPORT</span> in the header<br/>to generate and save a report.
+          </div>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {reports.map(r=>(
+            <div key={r.id} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",
+              display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:40,height:40,borderRadius:8,background:`${C.blue}22`,border:`1px solid ${C.blue}44`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📄</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",marginBottom:2,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</div>
+                <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{fmtTime(r.generatedAt)}</div>
+                {r.results&&(
+                  <div style={{fontSize:10,color:C.dim,fontFamily:"'DM Mono',monospace",marginTop:3}}>
+                    MTOW: {r.results.MTOW}kg · E: {r.results.Etot}kWh · SM: {(r.results.SM*100)?.toFixed(1)}%
+                  </div>
+                )}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>handleOpen(r)} type="button"
+                  style={{padding:"6px 12px",background:`linear-gradient(135deg,#1e3a5f,#1e40af)`,
+                    border:`1px solid ${C.blue}`,borderRadius:6,color:"#93c5fd",fontSize:10,
+                    cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:700}}>
+                  ⬇ Open PDF
+                </button>
+                <button onClick={()=>handleDelete(r.id)} type="button"
+                  style={{padding:"6px 10px",background:"transparent",border:`1px solid ${C.red}44`,
+                    borderRadius:6,color:C.red,fontSize:10,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Popup>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PROFILE DROPDOWN
+   ══════════════════════════════════════════════════════════════ */
+function ProfileDropdown({user,onSignOut,onClose,onUpdate}){
+  const[showProfile,setShowProfile]=useState(false);
+  const[showDesigns,setShowDesigns]=useState(false);
+  const[showReports,setShowReports]=useState(false);
+  const fu=getFullUser(user.email);
+  const displayName=buildDisplayName({...fu,...user});
+
+  const items=[
+    {icon:"👤",label:"Profile & Settings",action:()=>{setShowProfile(true);onClose();}},
+    {icon:"📐",label:"My Designs",action:()=>{setShowDesigns(true);onClose();}},
+    {icon:"📄",label:"Report History",action:()=>{setShowReports(true);onClose();}},
+  ];
+
+  return(
+    <>
+      <div style={{position:"absolute",top:"100%",right:0,zIndex:200,marginTop:8,
+        background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
+        width:260,boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
+        {/* User info header */}
+        <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:40,height:40,borderRadius:"50%",
+              background:`linear-gradient(135deg,${C.amber},#f97316)`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:17,fontWeight:800,color:"#07090f",flexShrink:0}}>
+              {displayName[0].toUpperCase()}
+            </div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{displayName}</div>
+              <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
+              {fu?.mobile&&<div style={{fontSize:9,color:C.teal,fontFamily:"'DM Mono',monospace"}}>📱 {fu.mobile}</div>}
+              {(fu?.org||user.org)&&<div style={{fontSize:9,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {fu?.org||user.org}</div>}
+              {fu?.username&&<div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fu.username}</div>}
+            </div>
+          </div>
+        </div>
+        {items.map(item=>(
+          <button key={item.label} onClick={item.action} type="button"
+            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
+              display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left",
+              borderBottom:`1px solid ${C.border}22`}}
+            onMouseEnter={e=>e.currentTarget.style.background="#ffffff08"}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{fontSize:14}}>{item.icon}</span>
+            <span style={{fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace"}}>{item.label}</span>
+          </button>
+        ))}
+        <button onClick={onSignOut} type="button"
+          style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
+            display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}
+          onMouseEnter={e=>e.currentTarget.style.background=`${C.red}11`}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{fontSize:14}}>🚪</span>
+          <span style={{fontSize:11,color:C.red,fontFamily:"'DM Mono',monospace",fontWeight:700}}>Sign Out</span>
+        </button>
+      </div>
+
+      {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onUpdate={s=>{onUpdate&&onUpdate(s);}}/>}
+      {showDesigns&&<MyDesignsModal user={user} onClose={()=>setShowDesigns(false)}/>}
+      {showReports&&<ReportHistoryModal user={user} onClose={()=>setShowReports(false)}/>}
+    </>
   );
 }
 
@@ -923,7 +1299,7 @@ function AuthGate({user,onAuth,children}){
 /* ══════════════════════════════════════════════════════════════
    USER HEADER BAR
    ══════════════════════════════════════════════════════════════ */
-function UserHeaderBar({user,onSignOut,onSignIn}){
+function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
   const[showNotifs,setShowNotifs]=useState(false);
   const[showProfile,setShowProfile]=useState(false);
   const[notifCount,setNotifCount]=useState(0);
@@ -959,6 +1335,9 @@ function UserHeaderBar({user,onSignOut,onSignIn}){
     </div>
   );
 
+  const displayName=buildDisplayName({...getFullUser(user.email),...user});
+  const firstName=displayName.split(" ")[0]||displayName;
+
   return(
     <div style={{display:"flex",gap:10,marginLeft:"auto",alignItems:"center"}}>
       {/* Bell */}
@@ -984,25 +1363,29 @@ function UserHeaderBar({user,onSignOut,onSignIn}){
             background:showProfile?`${C.amber}15`:"transparent",
             border:`1px solid ${showProfile?C.amber+"44":C.border}`,
             borderRadius:6,padding:"4px 10px 4px 5px",cursor:"pointer"}}>
-          <div style={{width:26,height:26,borderRadius:"50%",
+          <div style={{width:28,height:28,borderRadius:"50%",
             background:`linear-gradient(135deg,${C.amber},#f97316)`,
             display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:12,fontWeight:800,color:"#07090f"}}>
-            {user.avatar}
+            fontSize:13,fontWeight:800,color:"#07090f",flexShrink:0}}>
+            {displayName[0].toUpperCase()}
           </div>
           <div style={{textAlign:"left"}}>
             <div style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.2}}>
-              {user.name.split(" ")[0]}
+              {firstName}
             </div>
-            {user.org&&<div style={{fontSize:8,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {user.org}</div>}
+            {(user.org||getFullUser(user.email)?.org)&&
+              <div style={{fontSize:8,color:C.purple,fontFamily:"'DM Mono',monospace"}}>
+                🏢 {user.org||getFullUser(user.email)?.org}
+              </div>
+            }
           </div>
           <span style={{fontSize:8,color:C.dim}}>{showProfile?"▾":"▸"}</span>
         </button>
-        {showProfile&&<ProfileDropdown user={user} onSignOut={onSignOut} onClose={()=>setShowProfile(false)}/>}
+        {showProfile&&<ProfileDropdown user={user} onSignOut={onSignOut} onClose={()=>setShowProfile(false)} onUpdate={s=>{onUpdate&&onUpdate(s);setShowProfile(false);}}/>}
       </div>
     </div>
   );
 }
 
 /* ── EXPORTS ── */
-export { AuthModal, AuthGate, UserHeaderBar, NotifCenter, getSession, saveSession, clearSession, addNotif };
+export { AuthModal, AuthGate, UserHeaderBar, NotifCenter, getSession, saveSession, clearSession, addNotif, saveDesign, addReport, getDesigns, getReports };

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { AuthModal, AuthGate, UserHeaderBar, getSession, saveSession, clearSession, addNotif } from "./AuthSystem";
+import { AuthModal, AuthGate, UserHeaderBar, getSession, saveSession, clearSession, addNotif, saveDesign, addReport } from "./AuthSystem";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, RadarChart, Radar,
   ComposedChart,
@@ -1011,6 +1011,10 @@ export default function App(){
     clearSession();
     setUser(null);
   };
+  const handleUpdate=(session)=>{
+    saveSession(session);
+    setUser(session);
+  };
 
   const[p,setP]=useState({
     // ── Mission ──────────────────────────────────────────────────────────
@@ -1108,7 +1112,10 @@ export default function App(){
                 const w=window.open("","_blank");
                 w.document.write(html);
                 w.document.close();
-                if(user) addNotif(user.id,{title:"PDF Report Generated",body:`Design report for MTOW=${R.MTOW} kg exported successfully.`,type:"success"});
+                if(user){
+                  addNotif(user.id,{title:"PDF Report Generated",body:`Design report for MTOW=${R.MTOW} kg exported.`,type:"success"});
+                  addReport(user.id,{name:`Report — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
+                }
               }}
               style={{padding:"5px 14px",background:"linear-gradient(135deg,#1e3a5f,#1e40af)",
                 border:"1px solid #3b82f6",borderRadius:4,color:"#93c5fd",fontSize:9,cursor:"pointer",
@@ -1118,7 +1125,24 @@ export default function App(){
             </button>
           </AuthGate>
         )}
-        <UserHeaderBar user={user} onSignOut={handleSignOut} onSignIn={()=>setShowAuthModal(true)}/>
+        {R&&(
+          <AuthGate user={user} onAuth={handleAuth}>
+            <button onClick={()=>{
+                if(!user) return;
+                const html=generateReport(p,R);
+                const nm=`Design — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`;
+                saveDesign(user.id,{name:nm,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
+                addNotif(user.id,{title:"Design Saved",body:`"${nm}" saved to My Designs.`,type:"success"});
+              }}
+              style={{padding:"5px 14px",background:"linear-gradient(135deg,#0f2a0f,#14532d)",
+                border:"1px solid #22c55e",borderRadius:4,color:"#86efac",fontSize:9,cursor:"pointer",
+                fontFamily:"'DM Mono',monospace",fontWeight:700,letterSpacing:"0.05em",
+                display:"flex",alignItems:"center",gap:5}}>
+              {!user&&<span style={{fontSize:10}}>🔒</span>}💾 SAVE DESIGN
+            </button>
+          </AuthGate>
+        )}
+        <UserHeaderBar user={user} onSignOut={handleSignOut} onSignIn={()=>setShowAuthModal(true)} onUpdate={handleUpdate}/>
         {showAuthModal&&<AuthModal onClose={()=>setShowAuthModal(false)} onAuth={handleAuth}/>}
       </div>
 
