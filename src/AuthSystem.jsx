@@ -63,7 +63,9 @@ function verifyOTP(email, code) {
   const entry = otpStore[email];
   if (!entry) return false;
   if (Date.now() > entry.expires) return false;
-  return entry.code === code.trim();
+  if (code.length !== 6) return false;
+  if (!/^\d{6}$/.test(code)) return false;
+  return entry.code === code;
 }
 
 /* ── Mock user DB (localStorage) ── */
@@ -313,11 +315,13 @@ function AuthModal({ onClose, onAuth, defaultFlow = "login" }) {
     try {
       const code = generateOTP(email);
       await sendOTPEmail(email, code);
+      // Only show OTP input AFTER confirmed email send
       setOtpSent(true);
       startTimer();
-      setInfo(`OTP sent to ${email}! Check your inbox (and spam folder).`);
+      setInfo(`Code sent to ${email}! Check your inbox and spam folder.`);
     } catch (e) {
-      setErr("Failed to send OTP email. Please try again.");
+      // Do NOT set otpSent — keep user on email entry screen
+      setErr("Failed to send OTP. Check your email address and try again.");
     }
     setLoading(false);
   };
@@ -325,19 +329,31 @@ function AuthModal({ onClose, onAuth, defaultFlow = "login" }) {
   /* ── VERIFY OTP ── */
   const handleVerifyOTP = async () => {
     reset();
-    if (otp.trim().length < 6) return setErr("Enter the 6-digit code.");
+    const cleanOtp = otp.replace(/\s/g, "").trim();
+    if (cleanOtp.length !== 6) return setErr("Enter all 6 digits of your OTP.");
+    if (!/^\d{6}$/.test(cleanOtp)) return setErr("OTP must be 6 numbers only.");
+    if (!otpStore[email]) return setErr("No OTP was sent to this email. Please request a new one.");
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
-    if (!verifyOTP(email, otp.trim())) { setLoading(false); return setErr("Invalid or expired OTP. Try again."); }
+    if (!verifyOTP(email, cleanOtp)) {
+      setLoading(false);
+      return setErr("Invalid or expired OTP. Please request a new code.");
+    }
     const users = getUsers();
     let user = users[email];
     if (!user) {
-      // Auto-create account via OTP
       user = { id: uid(), name: email.split("@")[0], email, org: null, createdAt: now(), avatar: email[0].toUpperCase(), pwHash: "" };
       users[email] = user;
       saveUsers(users);
     }
     const session = { id: user.id, name: user.name, email: user.email, org: user.org, avatar: user.avatar, token: uid() };
+    saveSession(session);
+    addNotif(user.id, { title: "OTP Login Successful", body: "You signed in via one-time code.", type: "success" });
+    // Clear OTP from store after successful use (one-time use)
+    delete otpStore[email];
+    setLoading(false);
+    onAuth(session);
+  };
     saveSession(session);
     addNotif(user.id, { title: "OTP Login Successful", body: "You signed in via one-time code.", type: "success" });
     setLoading(false);
