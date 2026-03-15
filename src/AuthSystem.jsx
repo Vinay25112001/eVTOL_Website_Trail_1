@@ -28,21 +28,31 @@ const fmtTime = (iso) => {
   return d.toLocaleDateString();
 };
 
-/* ── EmailJS ── */
-const EJS_SERVICE  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-const EJS_TEMPLATE = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-const EJS_KEY      = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+/* ── EmailJS config ── */
+const EJS_SERVICE  = import.meta.env.VITE_EMAILJS_SERVICE_ID  || "";
+const EJS_TEMPLATE = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "";
+const EJS_KEY      = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  || "";
 
 async function sendOTPEmail(toEmail, otpCode) {
-  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      service_id:EJS_SERVICE, template_id:EJS_TEMPLATE, user_id:EJS_KEY,
-      template_params:{to_email:toEmail, otp_code:otpCode},
+  if(!EJS_SERVICE || !EJS_TEMPLATE || !EJS_KEY) {
+    throw new Error("EmailJS keys missing");
+  }
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id:  EJS_SERVICE,
+      template_id: EJS_TEMPLATE,
+      user_id:     EJS_KEY,
+      accessToken: EJS_KEY,
+      template_params: { to_email: toEmail, otp_code: otpCode },
     }),
   });
-  if(!res.ok) throw new Error("EmailJS send failed: "+res.status);
+  if(!res.ok) {
+    const txt = await res.text().catch(()=>"");
+    throw new Error(`EmailJS ${res.status}: ${txt}`);
+  }
 }
 
 /* ── OTP store (in-memory, expires in 5 min) ── */
@@ -237,7 +247,7 @@ function OTPScreen({email, onVerified, onBack}){
       startTimer();
       setInfo(`Code sent to ${email}`);
     }catch(e){
-      setErr("Failed to send OTP. Check your connection and try again.");
+      setErr("Failed to send OTP: "+e.message);
     }
     setSending(false);
   };
