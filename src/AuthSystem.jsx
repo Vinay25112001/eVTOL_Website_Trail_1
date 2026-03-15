@@ -30,9 +30,9 @@ const fmtTime = (iso) => {
 
 
 /* ── EmailJS config ── */
-const EJS_SERVICE  = import.meta.env.VITE_EMAILJS_SERVICE_ID  || "";
-const EJS_TEMPLATE = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "";
-const EJS_KEY      = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  || "";
+const EJS_SERVICE  = "service_Ir9esnm";
+const EJS_TEMPLATE = "template_g6lhbyl";
+const EJS_KEY      = "xdMM2-AaS1VGWJSaa";
 
 async function sendOTPEmail(toEmail, otpCode) {
   if(!EJS_SERVICE || !EJS_TEMPLATE || !EJS_KEY) {
