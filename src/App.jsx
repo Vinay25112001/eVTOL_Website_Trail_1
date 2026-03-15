@@ -331,7 +331,7 @@ function runSizing(p) {
     Eto:+Eto.toFixed(3),Ecl:+Ecl.toFixed(3),Ecr:+Ecr.toFixed(3),Edc:+Edc.toFixed(3),Eld:+Eld.toFixed(3),Eres:+Eres.toFixed(3),Etot:+Etot.toFixed(3),
     Swing:+Swing.toFixed(2),WL:+WL.toFixed(1),bWing:+bWing.toFixed(2),Cr_:+Cr_.toFixed(3),Ct_:+Ct_.toFixed(3),
     MAC:+MAC.toFixed(3),Ymac:+Ymac.toFixed(3),Xac:+Xac.toFixed(3),sweep:+sweep.toFixed(2),Re_:+Re_.toFixed(0),Mach:+Mach.toFixed(4),
-    selAF,afScored,LDact:+LDact.toFixed(2),CD0tot:+CD0tot.toFixed(5),CDi:+CDi.toFixed(5),CDtot:+CDtot.toFixed(5),dragComp,
+    selAF,afScored,LDact:+LDact.toFixed(2),CD0tot:+CD0tot.toFixed(5),CDi:+CDi.toFixed(5),CDtot:+CDtot.toFixed(5),
     SM:+SM.toFixed(4),xCGtotal:+xCGtotal.toFixed(3),xNP:+xNP.toFixed(3),xCGempty:+xCGempty.toFixed(3),xACwing:+xACwing.toFixed(3),
     Drotor:+Drotor.toFixed(3),DLrotor:+DLrotor.toFixed(1),PLrotor:+PLrotor.toFixed(1),
     TipSpd:+TipSpd.toFixed(1),TipMach:+TipMach.toFixed(4),RPM:+RPM.toFixed(0),
