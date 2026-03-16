@@ -908,11 +908,32 @@ function Popup({title,subtitle,onClose,children,width=520}){
 
 /* ── Profile Modal ── */
 function ProfileModal({user,onClose,onUpdate}){
+  // Always re-read from storage on mount to get freshest data
   const fu=getFullUser(user.email);
-  const[firstName,setFirstName]=useState(fu?.firstName||"");
-  const[lastName,setLastName]=useState(fu?.lastName||"");
-  const[mobile,setMobile]=useState(fu?.mobile||"");
-  const[org,setOrg]=useState(fu?.org||"");
+
+  // Smart name parsing — handle all account types
+  const parsedFirstName=(()=>{
+    if(fu?.firstName) return fu.firstName;
+    // Try parsing from stored name
+    const n=(fu?.name||user.name||"").trim();
+    if(n && n!=="undefined undefined" && n!=="undefined") return n.split(" ")[0]||"";
+    // Fall back to email prefix
+    return (user.email||"").split("@")[0]||"";
+  })();
+  const parsedLastName=(()=>{
+    if(fu?.lastName) return fu.lastName;
+    const n=(fu?.name||user.name||"").trim();
+    if(n && n!=="undefined undefined" && n!=="undefined"){
+      const parts=n.split(" ");
+      return parts.slice(1).join(" ")||"";
+    }
+    return "";
+  })();
+
+  const[firstName,setFirstName]=useState(parsedFirstName);
+  const[lastName,setLastName]=useState(parsedLastName);
+  const[mobile,setMobile]=useState(fu?.mobile||user.mobile||"");
+  const[org,setOrg]=useState(fu?.org||user.org||"");
   const[saving,setSaving]=useState(false);
   const[saved,setSaved]=useState(false);
   const[showPwSection,setShowPwSection]=useState(false);
@@ -922,16 +943,34 @@ function ProfileModal({user,onClose,onUpdate}){
   const[pwErr,setPwErr]=useState("");
   const[pwOk,setPwOk]=useState("");
 
+  // Auto-generate username from name if not set
+  const username=fu?.username||(parsedFirstName+parsedLastName).toLowerCase().replace(/\s/g,"")||user.email.split("@")[0];
+
   const handleSave=async()=>{
     setSaving(true);
     await new Promise(r=>setTimeout(r,400));
     const users=getUsers();
     const u=users[user.email];
     if(u){
-      users[user.email]={...u,firstName:firstName.trim(),lastName:lastName.trim(),mobile:mobile.trim()||null,org:org.trim()||null};
+      const updatedUser={...u,
+        firstName:firstName.trim(),
+        lastName:lastName.trim(),
+        mobile:mobile.trim()||null,
+        org:org.trim()||null,
+        username:u.username||username,
+      };
+      users[user.email]=updatedUser;
       saveUsers(users);
-      const newName=buildDisplayName({firstName:firstName.trim(),lastName:lastName.trim(),email:user.email});
-      const updatedSession={...getSession(),name:newName,firstName:firstName.trim(),lastName:lastName.trim(),mobile:mobile.trim()||null,org:org.trim()||null,avatar:newName[0].toUpperCase()};
+      const newName=`${firstName.trim()} ${lastName.trim()}`.trim()||parsedFirstName;
+      const updatedSession={
+        ...getSession(),
+        name:newName,
+        firstName:firstName.trim(),
+        lastName:lastName.trim(),
+        mobile:mobile.trim()||null,
+        org:org.trim()||null,
+        avatar:newName[0].toUpperCase(),
+      };
       saveSession(updatedSession);
       onUpdate(updatedSession);
       addNotif(user.id,{title:"Profile Updated",body:"Your profile details have been saved.",type:"success"});
@@ -956,27 +995,31 @@ function ProfileModal({user,onClose,onUpdate}){
     setTimeout(()=>setShowPwSection(false),1500);
   };
 
+  const displayAvatar=(firstName[0]||parsedFirstName[0]||user.email[0]||"?").toUpperCase();
+  const displayFullName=`${firstName} ${lastName}`.trim()||parsedFirstName;
+
   const fields=[
-    {label:"First Name",value:firstName,set:setFirstName,placeholder:"Jane"},
-    {label:"Last Name",value:lastName,set:setLastName,placeholder:"Smith"},
+    {label:"First Name",value:firstName,set:setFirstName,placeholder:"Enter first name"},
+    {label:"Last Name",value:lastName,set:setLastName,placeholder:"Enter last name"},
     {label:"Email Address",value:user.email,set:()=>{},placeholder:"",disabled:true},
     {label:"Mobile Number",value:mobile,set:setMobile,placeholder:"+1 234 567 8900"},
-    {label:"Organization",value:org,set:setOrg,placeholder:"Wright State University"},
-    {label:"Username",value:fu?.username||"",set:()=>{},placeholder:"",disabled:true},
+    {label:"Organization",value:org,set:setOrg,placeholder:"e.g. Wright State University"},
+    {label:"Username",value:username,set:()=>{},placeholder:"",disabled:true},
   ];
 
   return(
     <Popup title="My Profile" subtitle={`Joined ${fu?.createdAt?new Date(fu.createdAt).toLocaleDateString():"—"}`} onClose={onClose} width={480}>
-      {/* Avatar */}
+      {/* Avatar + name header */}
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,padding:"16px",background:C.bg,borderRadius:10,border:`1px solid ${C.border}`}}>
         <div style={{width:56,height:56,borderRadius:"50%",background:`linear-gradient(135deg,${C.amber},#f97316)`,
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:800,color:"#07090f",flexShrink:0}}>
-          {(firstName[0]||user.avatar||"?").toUpperCase()}
+          {displayAvatar}
         </div>
         <div>
-          <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{firstName} {lastName}</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{displayFullName}</div>
           <div style={{fontSize:11,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{user.email}</div>
-          {fu?.username&&<div style={{fontSize:10,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fu.username}</div>}
+          {username&&<div style={{fontSize:10,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{username}</div>}
+          {(org||fu?.org)&&<div style={{fontSize:10,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {org||fu?.org}</div>}
         </div>
       </div>
 
@@ -987,9 +1030,9 @@ function ProfileModal({user,onClose,onUpdate}){
             <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
             <input value={value} onChange={e=>set(e.target.value)} placeholder={placeholder} disabled={disabled} type="text"
               style={{width:"100%",boxSizing:"border-box",background:disabled?"#0a0d14":C.bg,
-                border:`1px solid ${disabled?C.border+"88":C.border}`,borderRadius:6,color:disabled?C.muted:C.text,
-                fontSize:12,padding:"9px 12px",fontFamily:"'DM Mono',monospace",outline:"none",
-                opacity:disabled?0.6:1}}
+                border:`1px solid ${disabled?C.border+"88":C.border}`,borderRadius:6,
+                color:disabled?C.muted:C.text,fontSize:12,padding:"9px 12px",
+                fontFamily:"'DM Mono',monospace",outline:"none",opacity:disabled?0.6:1}}
               onFocus={e=>{if(!disabled)e.target.style.borderColor=C.amber;}}
               onBlur={e=>{if(!disabled)e.target.style.borderColor=C.border;}}
             />
@@ -998,9 +1041,11 @@ function ProfileModal({user,onClose,onUpdate}){
       </div>
 
       <button onClick={handleSave} disabled={saving} type="button"
-        style={{width:"100%",padding:"10px",background:saved?`linear-gradient(135deg,${C.green},#16a34a)`:`linear-gradient(135deg,${C.amber},#f97316)`,
-          border:"none",borderRadius:6,color:"#07090f",fontSize:13,fontWeight:700,cursor:saving?"not-allowed":"pointer",
-          fontFamily:"'DM Mono',monospace",marginBottom:16,transition:"background 0.3s"}}>
+        style={{width:"100%",padding:"10px",
+          background:saved?`linear-gradient(135deg,${C.green},#16a34a)`:`linear-gradient(135deg,${C.amber},#f97316)`,
+          border:"none",borderRadius:6,color:"#07090f",fontSize:13,fontWeight:700,
+          cursor:saving?"not-allowed":"pointer",fontFamily:"'DM Mono',monospace",
+          marginBottom:16,transition:"background 0.3s"}}>
         {saving?"Saving...":saved?"✓ Saved!":"Save Changes"}
       </button>
 
@@ -1008,7 +1053,8 @@ function ProfileModal({user,onClose,onUpdate}){
       <div style={{borderTop:`1px solid ${C.border}`,paddingTop:16}}>
         <button onClick={()=>setShowPwSection(s=>!s)} type="button"
           style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,
-            color:C.text,fontSize:12,cursor:"pointer",padding:"8px 16px",fontFamily:"'DM Mono',monospace",fontWeight:600,marginBottom:showPwSection?12:0}}>
+            color:C.text,fontSize:12,cursor:"pointer",padding:"8px 16px",
+            fontFamily:"'DM Mono',monospace",fontWeight:600,marginBottom:showPwSection?12:0}}>
           🔑 {showPwSection?"Hide":"Change Password"}
         </button>
         {showPwSection&&(
@@ -1019,8 +1065,9 @@ function ProfileModal({user,onClose,onUpdate}){
               <div key={lbl} style={{marginBottom:10}}>
                 <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,textTransform:"uppercase"}}>{lbl}</div>
                 <input type="password" value={val} onChange={e=>setVal(e.target.value)} placeholder="••••••••"
-                  style={{width:"100%",boxSizing:"border-box",background:"#0a0d14",border:`1px solid ${C.border}`,
-                    borderRadius:6,color:C.text,fontSize:12,padding:"8px 12px",fontFamily:"'DM Mono',monospace",outline:"none"}}
+                  style={{width:"100%",boxSizing:"border-box",background:"#0a0d14",
+                    border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,
+                    padding:"8px 12px",fontFamily:"'DM Mono',monospace",outline:"none"}}
                   onFocus={e=>e.target.style.borderColor=C.amber}
                   onBlur={e=>e.target.style.borderColor=C.border}/>
               </div>
