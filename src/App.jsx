@@ -575,7 +575,7 @@ ${yVals.map((v,i)=>`    y[${i}] = ${v};`).join('\n')}
    User clicks "Download PDF" → new window opens → browser print dialog
    → "Save as PDF". Native browser PDF engine = perfect quality.
    ═══════════════════════════════════════════════════════════════════════ */
-function generateReport(p, R) {
+function generateReport(p, R, branding={}) {
   const n = (v, d=3) => (typeof v==="number" && isFinite(v)) ? v.toFixed(d) : "—";
   const now = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
   const feasBadge = R.feasible
@@ -602,19 +602,27 @@ function generateReport(p, R) {
     `<tr class="${ok?"ok":"fail"}"><td>${ok?"✓":"✗"}</td><td>${label}</td><td>${val}</td></tr>`;
 
   // ── COVER PAGE ───────────────────────────────────────────────────────
+  const bAuthor = branding.authorName || "Vinay Kumar Reddy Sirigireddy";
+  const bUniv   = branding.university || "Wright State University";
+  const bTitle  = branding.projectTitle || "eVTOL Aircraft Sizing Report";
+  const bDate   = branding.date || now;
+  const bLogo   = branding.logoUrl || "";
+
   const cover = `
   <div class="cover-page">
-    <div class="cover-logo">AEROSPACE DESIGN SUITE</div>
-    <div class="cover-title">eVTOL Aircraft<br>Sizing Report</div>
-    <div class="cover-sub">Trail 1 Design — Parametric Sizing Analysis</div>
+    ${bLogo ? `<img src="${bLogo}" alt="Logo" style="height:60px;object-fit:contain;margin-bottom:20px;border-radius:6px;">` : ""}
+    <div class="cover-logo">AEROSPACE DESIGN SUITE — eVTOL SIZER v2.0</div>
+    <div class="cover-title">${bTitle}</div>
+    <div class="cover-sub">Parametric Sizing Analysis — MATLAB Algorithm Port</div>
     <div class="cover-line"></div>
     <table class="cover-meta">
-      <tr><td>Institution</td><td>Wright State University</td></tr>
+      <tr><td>Author / Engineer</td><td>${bAuthor}</td></tr>
+      <tr><td>Institution</td><td>${bUniv}</td></tr>
       <tr><td>Advisor</td><td>Dr. Darryl K. Ahner</td></tr>
-      <tr><td>Graduate Student</td><td>Vinay Kumar Reddy Sirigireddy</td></tr>
       <tr><td>Framework</td><td>MATLAB-MBSE Integrated Sizing Framework</td></tr>
       <tr><td>Algorithm</td><td>eVTOL_Full_Analysis_v2.m — JavaScript Port</td></tr>
-      <tr><td>Report Generated</td><td>${now}</td></tr>
+      <tr><td>Report Date</td><td>${bDate}</td></tr>
+      <tr><td>Generated</td><td>${now}</td></tr>
       <tr><td>Design Status</td><td>${feasBadge}</td></tr>
     </table>
     <div class="cover-kpi-grid">
@@ -622,7 +630,7 @@ function generateReport(p, R) {
       <div class="kpi"><div class="kpi-val">${n(R.Etot,2)} kWh</div><div class="kpi-lbl">Total Energy</div></div>
       <div class="kpi"><div class="kpi-val">${n(R.Phov,1)} kW</div><div class="kpi-lbl">Hover Power</div></div>
       <div class="kpi"><div class="kpi-val">${n(R.bWing,2)} m</div><div class="kpi-lbl">Wing Span</div></div>
-      <div class="kpi"><div class="kpi-val">${n(R.SM*100,1)}%</div><div class="kpi-lbl">Static Margin</div></div>
+      <div class="kpi"><div class="kpi-val">${n(R.SM_vt*100,1)}%</div><div class="kpi-lbl">Static Margin</div></div>
       <div class="kpi"><div class="kpi-val">${n(R.LDact,2)}</div><div class="kpi-lbl">Actual L/D</div></div>
     </div>
   </div>`;
@@ -1142,9 +1150,18 @@ window.addEventListener('load',()=>{setTimeout(()=>window.print(),1200);});
 /* ═══════════════════════════════════
    THEME & CONSTANTS
    ═══════════════════════════════════ */
+/* ═══════════════════════════════════
+   THEME SYSTEM — dark / light
+   ═══════════════════════════════════ */
+const DARK={bg:"#07090f",panel:"#0d1117",border:"#1c2333",amber:"#f59e0b",teal:"#14b8a6",
+  blue:"#3b82f6",red:"#ef4444",green:"#22c55e",dim:"#4b5563",text:"#e2e8f0",muted:"#64748b",
+  purple:"#8b5cf6",orange:"#f97316"};
+const LIGHT={bg:"#f8fafc",panel:"#ffffff",border:"#e2e8f0",amber:"#d97706",teal:"#0d9488",
+  blue:"#2563eb",red:"#dc2626",green:"#16a34a",dim:"#9ca3af",text:"#0f172a",muted:"#64748b",
+  purple:"#7c3aed",orange:"#ea580c"};
+let C=DARK; // global ref — updated by App before render
+
 const PHC=["#ff6b35","#ffd23f","#06d6a0","#118ab2","#8338ec","#6c757d"];
-const C={bg:"#07090f",panel:"#0d1117",border:"#1c2333",amber:"#f59e0b",teal:"#14b8a6",
-  blue:"#3b82f6",red:"#ef4444",green:"#22c55e",dim:"#4b5563",text:"#e2e8f0",muted:"#64748b"};
 
 /* ═══════════════════════════════════
    REUSABLE COMPONENTS
@@ -1225,19 +1242,90 @@ export default function App(){
   const[tab,setTab]=useState(0);
   const[user,setUser]=useState(()=>getSession());
   const[showAuthModal,setShowAuthModal]=useState(false);
+  const[darkMode,setDarkMode]=useState(true);
+  const[showPdfBranding,setShowPdfBranding]=useState(false);
+  const[pdfBranding,setPdfBranding]=useState({
+    authorName:"", university:"Wright State University",
+    projectTitle:"eVTOL Sizing Analysis", logoUrl:"", date:new Date().toLocaleDateString(),
+  });
+
+  // Update global C on every render based on theme
+  C = darkMode ? DARK : LIGHT;
 
   const handleAuth=(session)=>{
     saveSession(session);
     setUser(session);
     setShowAuthModal(false);
   };
-  const handleSignOut=()=>{
-    clearSession();
-    setUser(null);
-  };
-  const handleUpdate=(session)=>{
-    saveSession(session);
-    setUser(session);
+  const handleSignOut=()=>{ clearSession(); setUser(null); };
+  const handleUpdate=(session)=>{ saveSession(session); setUser(session); };
+
+  /* ── CSV Export ── */
+  const exportCSV=()=>{
+    if(!R) return;
+    const rows=[
+      ["eVTOL Sizer — Results Export","",""],
+      ["Generated",new Date().toLocaleString(),""],
+      ["","",""],
+      ["=== WEIGHTS ===","",""],
+      ["MTOW (kg)",R.MTOW,""],
+      ["Empty Weight (kg)",R.Wempty,""],
+      ["Battery Mass (kg)",R.Wbat,""],
+      ["Payload (kg)",p.payload,""],
+      ["","",""],
+      ["=== ENERGY & POWER ===","",""],
+      ["Total Mission Energy (kWh)",R.Etot,""],
+      ["Pack Energy (kWh)",R.PackkWh,""],
+      ["Hover Power (kW)",R.Phov,""],
+      ["Climb Power (kW)",R.Pcl,""],
+      ["Cruise Power (kW)",R.Pcr,""],
+      ["Descent Power (kW)",R.Pdc,""],
+      ["Reserve Power (kW)",R.Pres,""],
+      ["","",""],
+      ["=== PHASE TIMES (s) ===","",""],
+      ["Takeoff",R.tto,""],["Climb",R.tcl,""],["Cruise",R.tcr,""],
+      ["Descent",R.tdc,""],["Landing",R.tld,""],["Reserve",R.tres,""],
+      ["Total",R.Tend,""],
+      ["","",""],
+      ["=== AERODYNAMICS ===","",""],
+      ["Wing Area (m²)",R.Swing,""],["Wing Span (m)",R.bWing,""],
+      ["MAC (m)",R.MAC,""],["Sweep (°)",R.sweep,""],
+      ["Actual L/D",R.LDact,""],["CD0 total",R.CD0tot,""],
+      ["Mach",R.Mach,""],["Reynolds ×10⁶",(R.Re_/1e6).toFixed(2),""],
+      ["Selected Airfoil",R.selAF.name,""],
+      ["","",""],
+      ["=== PROPULSION ===","",""],
+      ["Rotor Diameter AD (m)",R.Drotor,""],["Tip Mach",R.TipMach,""],
+      ["RPM",R.RPM,""],["Disk Loading (N/m²)",R.DLrotor,""],
+      ["Tip Speed (m/s)",R.TipSpd,""],["Motor Power/rotor (kW)",R.PmotKW,""],
+      ["T/W hover",R.TW_hover,""],["T/W cruise",R.TW_cruise,""],
+      ["","",""],
+      ["=== STABILITY ===","",""],
+      ["CG from nose (m)",R.xCGtotal,""],["NP from nose (m)",R.xNP,""],
+      ["Static Margin baseline (% MAC)",(R.SM*100).toFixed(2),""],
+      ["Static Margin w/ V-tail (% MAC)",(R.SM_vt*100).toFixed(2),""],
+      ["","",""],
+      ["=== BATTERY ===","",""],
+      ["Pack Energy (kWh)",R.PackkWh,""],["SED pack (Wh/kg)",R.SEDpack,""],
+      ["Cell config",`${R.Nseries}s×${R.Npar}p`,""],["Total cells",R.Ncells,""],
+      ["C-rate hover",R.CrateHov,""],["C-rate cruise",R.CrateCr,""],
+      ["","",""],
+      ["=== INPUT PARAMETERS ===","",""],
+      ["Payload (kg)",p.payload,""],["Range (km)",p.range,""],
+      ["Cruise Speed (m/s)",p.vCruise,""],["Cruise Alt (m)",p.cruiseAlt,""],
+      ["L/D",p.LD,""],["AR",p.AR,""],["Oswald e",p.eOsw,""],
+      ["Design CL",p.clDesign,""],["EWF",p.ewf,""],
+      ["Cell SED (Wh/kg)",p.sedCell,""],["Battery η",p.etaBat,""],
+      ["Hover FOM",p.etaHov,""],["System η",p.etaSys,""],
+      ["T/W ratio",p.twRatio,""],["Rotors",p.nPropHover,""],
+    ];
+    const csv=rows.map(r=>r.map(v=>`"${v}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=`eVTOL_Results_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    if(user) addNotif(user.id,{title:"CSV Exported",body:"Results downloaded as spreadsheet.",type:"success"});
   };
 
   const[p,setP]=useState({
@@ -1268,27 +1356,75 @@ export default function App(){
   const stTxt=!R?"ERROR":R.feasible?"FEASIBLE":"CHECK DESIGN";
 
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:C.bg,color:C.text,
-      fontFamily:"'Barlow',system-ui,sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",
+      background:C.bg,color:C.text,
+      fontFamily:"'Barlow',system-ui,sans-serif",overflow:"hidden",
+      transition:"background 0.2s,color 0.2s"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Barlow:wght@400;600;700;800&display=swap');
-        html,body{background:#07090f;color:#e2e8f0;margin:0;padding:0}
+        html,body{background:${C.bg};color:${C.text};margin:0;padding:0}
         *{box-sizing:border-box}
         ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-track{background:#07090f}
-        ::-webkit-scrollbar-thumb{background:#1c2333;border-radius:3px}
+        ::-webkit-scrollbar-track{background:${C.bg}}
+        ::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}
         input[type=range]{-webkit-appearance:none;appearance:none}
-        input[type=number]{-moz-appearance:textfield;background:#0d1117;color:#f59e0b}
+        input[type=number]{-moz-appearance:textfield;background:${C.panel};color:${C.amber}}
         input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
-        .recharts-tooltip-wrapper .recharts-default-tooltip{background:#131c2e !important;border:1px solid #2a3a5c !important;border-radius:6px !important;box-shadow:0 4px 20px rgba(0,0,0,0.8) !important;padding:8px 12px !important}
-        .recharts-tooltip-wrapper .recharts-tooltip-label{color:#94a3b8 !important;font-size:12px !important;font-weight:600 !important;margin-bottom:4px !important;display:block}
-        .recharts-tooltip-wrapper .recharts-tooltip-item{color:#e2e8f0 !important;font-size:12px !important}
-        .recharts-tooltip-wrapper .recharts-tooltip-item-name{color:#94a3b8 !important}
-        .recharts-tooltip-wrapper .recharts-tooltip-item-value{color:#f59e0b !important;font-weight:700 !important}
-        .recharts-tooltip-wrapper .recharts-tooltip-item-separator{color:#4b5563 !important}
-        .recharts-legend-item-text{color:#94a3b8 !important;font-size:11px !important}
+        .recharts-tooltip-wrapper .recharts-default-tooltip{background:${C.panel} !important;border:1px solid ${C.border} !important;border-radius:6px !important;box-shadow:0 4px 20px rgba(0,0,0,0.4) !important;padding:8px 12px !important}
+        .recharts-tooltip-wrapper .recharts-tooltip-label{color:${C.muted} !important;font-size:12px !important;font-weight:600 !important;margin-bottom:4px !important;display:block}
+        .recharts-tooltip-wrapper .recharts-tooltip-item{color:${C.text} !important;font-size:12px !important}
+        .recharts-tooltip-wrapper .recharts-tooltip-item-name{color:${C.muted} !important}
+        .recharts-tooltip-wrapper .recharts-tooltip-item-value{color:${C.amber} !important;font-weight:700 !important}
+        .recharts-tooltip-wrapper .recharts-tooltip-item-separator{color:${C.dim} !important}
+        .recharts-legend-item-text{color:${C.muted} !important;font-size:11px !important}
         span,div,td,th{color:inherit}
       `}</style>
+
+      {/* PDF BRANDING POPUP */}
+      {showPdfBranding&&(
+        <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,0.7)",
+          backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={e=>e.target===e.currentTarget&&setShowPdfBranding(false)}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,
+            padding:"24px 28px",width:460,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.15em",marginBottom:4}}>PDF REPORT</div>
+                <div style={{fontSize:16,fontWeight:800,color:C.text}}>
+                  <span style={{color:C.amber}}>eVTOL</span> — Report Branding
+                </div>
+              </div>
+              <button onClick={()=>setShowPdfBranding(false)} type="button"
+                style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,
+                  color:C.muted,fontSize:14,cursor:"pointer",padding:"5px 10px"}}>✕ Close</button>
+            </div>
+            {[
+              ["Author / Engineer Name","authorName","Your full name"],
+              ["University / Organization","university","e.g. Wright State University"],
+              ["Project Title","projectTitle","e.g. eVTOL Sizing Analysis"],
+              ["Logo URL (optional)","logoUrl","https://...logo.png"],
+              ["Report Date","date",new Date().toLocaleDateString()],
+            ].map(([lbl,key,ph])=>(
+              <div key={key} style={{marginBottom:12}}>
+                <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",
+                  textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:5}}>{lbl}</div>
+                <input value={pdfBranding[key]} onChange={e=>setPdfBranding(b=>({...b,[key]:e.target.value}))}
+                  placeholder={ph} type="text"
+                  style={{width:"100%",boxSizing:"border-box",background:C.bg,border:`1px solid ${C.border}`,
+                    borderRadius:6,color:C.text,fontSize:12,padding:"8px 12px",
+                    fontFamily:"'DM Mono',monospace",outline:"none"}}
+                  onFocus={e=>e.target.style.borderColor=C.amber}
+                  onBlur={e=>e.target.style.borderColor=C.border}/>
+              </div>
+            ))}
+            <div style={{marginTop:6,padding:"8px 12px",background:`${C.green}11`,
+              border:`1px solid ${C.green}44`,borderRadius:6,fontSize:10,color:C.green,
+              fontFamily:"'DM Mono',monospace"}}>
+              ✓ These details will appear on the PDF cover page when you click ⬇ PDF REPORT
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div style={{display:"flex",alignItems:"center",padding:"8px 18px",background:C.panel,
@@ -1311,7 +1447,7 @@ export default function App(){
             {[[" MTOW",R.MTOW,"kg",R.MTOW<4000?C.green:R.MTOW<5000?C.amber:C.red],
               ["E_total",R.Etot,"kWh",C.teal],["P_hover",R.Phov,"kW",C.blue],
               ["  L/D",R.LDact,"",R.LDact>12?C.green:C.amber],
-              [" SM",(R.SM*100).toFixed(1)+"%","",R.SM>0.05&&R.SM<0.25?C.green:C.red]
+              [" SM",(R.SM_vt*100).toFixed(1)+"%","",R.SM_vt>0.05&&R.SM_vt<0.25?C.green:C.red]
             ].map(([l,v,u,col])=>(
               <div key={l} style={{textAlign:"center"}}>
                 <div style={{fontSize:7,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em"}}>{l}</div>
@@ -1322,52 +1458,92 @@ export default function App(){
             ))}
           </div>
         )}
-        <button onClick={()=>setP({payload:455,range:250,vCruise:67,cruiseAlt:1000,reserveRange:60,hoverHeight:15.24,
-          LD:14,AR:9,eOsw:0.85,clDesign:0.55,taper:0.45,tc:0.15,nPropHover:6,propDiam:3.0,twRatio:1.2,convTolExp:-6,
-          etaHov:0.70,etaSys:0.80,rateOfClimb:5.08,climbAngle:5,sedCell:300,etaBat:0.90,socMin:0.2,ewf:0.50,
-          fusLen:7.2,fusDiam:1.65,
-          vtGamma:45,vtCh:0.45,vtCv:0.032,vtAR:2.5})}
-          style={{padding:"5px 12px",background:"transparent",border:`1px solid ${C.border}`,
-            borderRadius:4,color:C.muted,fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>↺ RESET</button>
-        {R&&(
-          <AuthGate user={user} onAuth={handleAuth}>
-            <button onClick={()=>{
-                const html=generateReport(p,R);
-                const w=window.open("","_blank");
-                w.document.write(html);
-                w.document.close();
-                if(user){
-                  addNotif(user.id,{title:"PDF Report Generated",body:`Design report for MTOW=${R.MTOW} kg exported.`,type:"success"});
-                  addReport(user.id,{name:`Report — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
-                }
-              }}
-              style={{padding:"5px 14px",background:"linear-gradient(135deg,#1e3a5f,#1e40af)",
-                border:"1px solid #3b82f6",borderRadius:4,color:"#93c5fd",fontSize:9,cursor:"pointer",
-                fontFamily:"'DM Mono',monospace",fontWeight:700,letterSpacing:"0.05em",
-                boxShadow:"0 0 12px #3b82f620",display:"flex",alignItems:"center",gap:5}}>
-              {!user&&<span title="Sign in required" style={{fontSize:10}}>🔒</span>}⬇ PDF REPORT
+
+        {/* Action buttons */}
+        <div style={{display:"flex",gap:6,marginLeft:"auto",alignItems:"center",flexWrap:"wrap"}}>
+          {/* Dark/Light toggle */}
+          <button onClick={()=>setDarkMode(d=>!d)} type="button"
+            title={darkMode?"Switch to Light Mode":"Switch to Dark Mode"}
+            style={{padding:"5px 10px",background:"transparent",
+              border:`1px solid ${C.border}`,borderRadius:4,
+              color:C.muted,fontSize:13,cursor:"pointer",lineHeight:1}}>
+            {darkMode?"☀️":"🌙"}
+          </button>
+
+          {/* Reset */}
+          <button onClick={()=>setP({payload:455,range:250,vCruise:67,cruiseAlt:1000,reserveRange:60,hoverHeight:15.24,
+            LD:14,AR:9,eOsw:0.85,clDesign:0.55,taper:0.45,tc:0.15,nPropHover:6,propDiam:3.0,twRatio:1.2,convTolExp:-6,
+            etaHov:0.70,etaSys:0.80,rateOfClimb:5.08,climbAngle:5,sedCell:300,etaBat:0.90,socMin:0.2,ewf:0.50,
+            fusLen:7.2,fusDiam:1.65,vtGamma:45,vtCh:0.45,vtCv:0.032,vtAR:2.5})}
+            style={{padding:"5px 12px",background:"transparent",border:`1px solid ${C.border}`,
+              borderRadius:4,color:C.muted,fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+            ↺ RESET
+          </button>
+
+          {/* CSV Export */}
+          {R&&(
+            <button onClick={exportCSV} type="button"
+              style={{padding:"5px 12px",background:`linear-gradient(135deg,#14532d,#166534)`,
+                border:`1px solid #22c55e`,borderRadius:4,color:"#86efac",fontSize:9,
+                cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:700}}>
+              📊 CSV
             </button>
-          </AuthGate>
-        )}
-        {R&&(
-          <AuthGate user={user} onAuth={handleAuth}>
-            <button onClick={()=>{
-                if(!user) return;
-                const html=generateReport(p,R);
-                const nm=`Design — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`;
-                saveDesign(user.id,{name:nm,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
-                addNotif(user.id,{title:"Design Saved",body:`"${nm}" saved to My Designs.`,type:"success"});
-              }}
-              style={{padding:"5px 14px",background:"linear-gradient(135deg,#0f2a0f,#14532d)",
-                border:"1px solid #22c55e",borderRadius:4,color:"#86efac",fontSize:9,cursor:"pointer",
-                fontFamily:"'DM Mono',monospace",fontWeight:700,letterSpacing:"0.05em",
-                display:"flex",alignItems:"center",gap:5}}>
-              {!user&&<span style={{fontSize:10}}>🔒</span>}💾 SAVE DESIGN
+          )}
+
+          {/* PDF Branding settings */}
+          {R&&(
+            <button onClick={()=>setShowPdfBranding(true)} type="button"
+              style={{padding:"5px 12px",background:"transparent",
+                border:`1px solid ${C.border}`,borderRadius:4,
+                color:C.muted,fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+              🎨 BRAND PDF
             </button>
-          </AuthGate>
-        )}
-        <UserHeaderBar user={user} onSignOut={handleSignOut} onSignIn={()=>setShowAuthModal(true)} onUpdate={handleUpdate}/>
-        {showAuthModal&&<AuthModal onClose={()=>setShowAuthModal(false)} onAuth={handleAuth}/>}
+          )}
+
+          {/* PDF Report */}
+          {R&&(
+            <AuthGate user={user} onAuth={handleAuth}>
+              <button onClick={()=>{
+                  const html=generateReport(p,R,pdfBranding);
+                  const w=window.open("","_blank");
+                  w.document.write(html);
+                  w.document.close();
+                  if(user){
+                    addNotif(user.id,{title:"PDF Report Generated",body:`Design report for MTOW=${R.MTOW} kg exported.`,type:"success"});
+                    addReport(user.id,{name:`Report — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
+                  }
+                }}
+                style={{padding:"5px 14px",background:"linear-gradient(135deg,#1e3a5f,#1e40af)",
+                  border:"1px solid #3b82f6",borderRadius:4,color:"#93c5fd",fontSize:9,cursor:"pointer",
+                  fontFamily:"'DM Mono',monospace",fontWeight:700,letterSpacing:"0.05em",
+                  boxShadow:"0 0 12px #3b82f620",display:"flex",alignItems:"center",gap:5}}>
+                {!user&&<span title="Sign in required" style={{fontSize:10}}>🔒</span>}⬇ PDF REPORT
+              </button>
+            </AuthGate>
+          )}
+
+          {/* Save Design */}
+          {R&&(
+            <AuthGate user={user} onAuth={handleAuth}>
+              <button onClick={()=>{
+                  if(!user) return;
+                  const html=generateReport(p,R,pdfBranding);
+                  const nm=`Design — MTOW ${R.MTOW}kg · ${new Date().toLocaleDateString()}`;
+                  saveDesign(user.id,{name:nm,params:p,results:{MTOW:R.MTOW,Etot:R.Etot,Phov:R.Phov,LDact:R.LDact,SM:R.SM},pdfHtml:html});
+                  addNotif(user.id,{title:"Design Saved",body:`"${nm}" saved to My Designs.`,type:"success"});
+                }}
+                style={{padding:"5px 14px",background:"linear-gradient(135deg,#0f2a0f,#14532d)",
+                  border:"1px solid #22c55e",borderRadius:4,color:"#86efac",fontSize:9,cursor:"pointer",
+                  fontFamily:"'DM Mono',monospace",fontWeight:700,letterSpacing:"0.05em",
+                  display:"flex",alignItems:"center",gap:5}}>
+                {!user&&<span style={{fontSize:10}}>🔒</span>}💾 SAVE DESIGN
+              </button>
+            </AuthGate>
+          )}
+
+          <UserHeaderBar user={user} onSignOut={handleSignOut} onSignIn={()=>setShowAuthModal(true)} onUpdate={handleUpdate}/>
+          {showAuthModal&&<AuthModal onClose={()=>setShowAuthModal(false)} onAuth={handleAuth}/>}
+        </div>
       </div>
 
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
