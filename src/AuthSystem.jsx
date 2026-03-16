@@ -1198,71 +1198,62 @@ function ReportHistoryModal({user,onClose}){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PROFILE DROPDOWN
+   PROFILE DROPDOWN — no modal state here, just triggers
    ══════════════════════════════════════════════════════════════ */
-function ProfileDropdown({user,onSignOut,onClose,onUpdate}){
-  const[showProfile,setShowProfile]=useState(false);
-  const[showDesigns,setShowDesigns]=useState(false);
-  const[showReports,setShowReports]=useState(false);
+function ProfileDropdown({user,onSignOut,onClose,onOpenProfile,onOpenDesigns,onOpenReports}){
   const fu=getFullUser(user.email);
   const displayName=buildDisplayName({...fu,...user});
 
   const items=[
-    {icon:"👤",label:"Profile & Settings",action:()=>{setShowProfile(true);onClose();}},
-    {icon:"📐",label:"My Designs",action:()=>{setShowDesigns(true);onClose();}},
-    {icon:"📄",label:"Report History",action:()=>{setShowReports(true);onClose();}},
+    {icon:"👤",label:"Profile & Settings",action:()=>{ onClose(); setTimeout(()=>onOpenProfile(),50); }},
+    {icon:"📐",label:"My Designs",         action:()=>{ onClose(); setTimeout(()=>onOpenDesigns(),50); }},
+    {icon:"📄",label:"Report History",     action:()=>{ onClose(); setTimeout(()=>onOpenReports(),50); }},
   ];
 
   return(
-    <>
-      <div style={{position:"absolute",top:"100%",right:0,zIndex:200,marginTop:8,
-        background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
-        width:260,boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
-        {/* User info header */}
-        <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:40,height:40,borderRadius:"50%",
-              background:`linear-gradient(135deg,${C.amber},#f97316)`,
-              display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:17,fontWeight:800,color:"#07090f",flexShrink:0}}>
-              {displayName[0].toUpperCase()}
-            </div>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",
-                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{displayName}</div>
-              <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",
-                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
-              {fu?.mobile&&<div style={{fontSize:9,color:C.teal,fontFamily:"'DM Mono',monospace"}}>📱 {fu.mobile}</div>}
-              {(fu?.org||user.org)&&<div style={{fontSize:9,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {fu?.org||user.org}</div>}
-              {fu?.username&&<div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fu.username}</div>}
-            </div>
+    <div style={{position:"absolute",top:"100%",right:0,zIndex:200,marginTop:8,
+      background:C.panel,border:`1px solid ${C.border}`,borderRadius:10,
+      width:260,boxShadow:"0 8px 40px rgba(0,0,0,0.6)"}}>
+      {/* User info header */}
+      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:40,height:40,borderRadius:"50%",
+            background:`linear-gradient(135deg,${C.amber},#f97316)`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:17,fontWeight:800,color:"#07090f",flexShrink:0}}>
+            {displayName[0].toUpperCase()}
+          </div>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",
+              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{displayName}</div>
+            <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",
+              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
+            {fu?.mobile&&<div style={{fontSize:9,color:C.teal,fontFamily:"'DM Mono',monospace"}}>📱 {fu.mobile}</div>}
+            {(fu?.org||user.org)&&<div style={{fontSize:9,color:C.purple,fontFamily:"'DM Mono',monospace"}}>🏢 {fu?.org||user.org}</div>}
+            {fu?.username&&<div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace"}}>@{fu.username}</div>}
           </div>
         </div>
-        {items.map(item=>(
-          <button key={item.label} onClick={item.action} type="button"
-            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
-              display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left",
-              borderBottom:`1px solid ${C.border}22`}}
-            onMouseEnter={e=>e.currentTarget.style.background="#ffffff08"}
-            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <span style={{fontSize:14}}>{item.icon}</span>
-            <span style={{fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace"}}>{item.label}</span>
-          </button>
-        ))}
-        <button onClick={onSignOut} type="button"
-          style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
-            display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}
-          onMouseEnter={e=>e.currentTarget.style.background=`${C.red}11`}
-          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <span style={{fontSize:14}}>🚪</span>
-          <span style={{fontSize:11,color:C.red,fontFamily:"'DM Mono',monospace",fontWeight:700}}>Sign Out</span>
-        </button>
       </div>
-
-      {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onUpdate={s=>{onUpdate&&onUpdate(s);}}/>}
-      {showDesigns&&<MyDesignsModal user={user} onClose={()=>setShowDesigns(false)}/>}
-      {showReports&&<ReportHistoryModal user={user} onClose={()=>setShowReports(false)}/>}
-    </>
+      {items.map(item=>(
+        <button key={item.label} onClick={item.action} type="button"
+          style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
+            display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left",
+            borderBottom:`1px solid ${C.border}22`}}
+          onMouseEnter={e=>e.currentTarget.style.background="#ffffff08"}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{fontSize:14}}>{item.icon}</span>
+          <span style={{fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace"}}>{item.label}</span>
+        </button>
+      ))}
+      <button onClick={()=>{ onClose(); onSignOut(); }} type="button"
+        style={{width:"100%",padding:"10px 16px",background:"none",border:"none",
+          display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}
+        onMouseEnter={e=>e.currentTarget.style.background=`${C.red}11`}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        <span style={{fontSize:14}}>🚪</span>
+        <span style={{fontSize:11,color:C.red,fontFamily:"'DM Mono',monospace",fontWeight:700}}>Sign Out</span>
+      </button>
+    </div>
   );
 }
 
@@ -1297,7 +1288,8 @@ function AuthGate({user,onAuth,children}){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   USER HEADER BAR
+   USER HEADER BAR — modal state lives here so popups survive
+   dropdown unmounting
    ══════════════════════════════════════════════════════════════ */
 function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
   const[showNotifs,setShowNotifs]=useState(false);
@@ -1305,6 +1297,11 @@ function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
   const[notifCount,setNotifCount]=useState(0);
   const notifRef=useRef(null);
   const profileRef=useRef(null);
+
+  // Modal state lives HERE — not inside ProfileDropdown
+  const[showProfileModal,setShowProfileModal]=useState(false);
+  const[showDesignsModal,setShowDesignsModal]=useState(false);
+  const[showReportsModal,setShowReportsModal]=useState(false);
 
   useEffect(()=>{
     if(user) setNotifCount(getNotifs(user.id).filter(x=>!x.read).length);
@@ -1339,51 +1336,85 @@ function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
   const firstName=displayName.split(" ")[0]||displayName;
 
   return(
-    <div style={{display:"flex",gap:10,marginLeft:"auto",alignItems:"center"}}>
-      {/* Bell */}
-      <div ref={notifRef} style={{position:"relative"}}>
-        <button onClick={()=>{setShowNotifs(s=>!s);setShowProfile(false);}} type="button"
-          style={{background:showNotifs?`${C.amber}15`:"transparent",
-            border:`1px solid ${showNotifs?C.amber+"44":C.border}`,
-            borderRadius:6,padding:"5px 9px",cursor:"pointer",
-            display:"flex",alignItems:"center",gap:4,position:"relative"}}>
-          <span style={{fontSize:14}}>🔔</span>
-          {notifCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:C.red,color:"#fff",
-            fontSize:8,borderRadius:10,padding:"1px 5px",fontWeight:800,
-            fontFamily:"'DM Mono',monospace",minWidth:16,textAlign:"center"}}>
-            {notifCount>9?"9+":notifCount}
-          </span>}
-        </button>
-        {showNotifs&&<NotifCenter user={user} onClose={()=>setShowNotifs(false)}/>}
-      </div>
-      {/* Avatar */}
-      <div ref={profileRef} style={{position:"relative"}}>
-        <button onClick={()=>{setShowProfile(s=>!s);setShowNotifs(false);}} type="button"
-          style={{display:"flex",alignItems:"center",gap:8,
-            background:showProfile?`${C.amber}15`:"transparent",
-            border:`1px solid ${showProfile?C.amber+"44":C.border}`,
-            borderRadius:6,padding:"4px 10px 4px 5px",cursor:"pointer"}}>
-          <div style={{width:28,height:28,borderRadius:"50%",
-            background:`linear-gradient(135deg,${C.amber},#f97316)`,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:13,fontWeight:800,color:"#07090f",flexShrink:0}}>
-            {displayName[0].toUpperCase()}
-          </div>
-          <div style={{textAlign:"left"}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.2}}>
-              {firstName}
+    <>
+      <div style={{display:"flex",gap:10,marginLeft:"auto",alignItems:"center"}}>
+        {/* Bell */}
+        <div ref={notifRef} style={{position:"relative"}}>
+          <button onClick={()=>{setShowNotifs(s=>!s);setShowProfile(false);}} type="button"
+            style={{background:showNotifs?`${C.amber}15`:"transparent",
+              border:`1px solid ${showNotifs?C.amber+"44":C.border}`,
+              borderRadius:6,padding:"5px 9px",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:4,position:"relative"}}>
+            <span style={{fontSize:14}}>🔔</span>
+            {notifCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:C.red,color:"#fff",
+              fontSize:8,borderRadius:10,padding:"1px 5px",fontWeight:800,
+              fontFamily:"'DM Mono',monospace",minWidth:16,textAlign:"center"}}>
+              {notifCount>9?"9+":notifCount}
+            </span>}
+          </button>
+          {showNotifs&&<NotifCenter user={user} onClose={()=>setShowNotifs(false)}/>}
+        </div>
+
+        {/* Avatar + dropdown */}
+        <div ref={profileRef} style={{position:"relative"}}>
+          <button onClick={()=>{setShowProfile(s=>!s);setShowNotifs(false);}} type="button"
+            style={{display:"flex",alignItems:"center",gap:8,
+              background:showProfile?`${C.amber}15`:"transparent",
+              border:`1px solid ${showProfile?C.amber+"44":C.border}`,
+              borderRadius:6,padding:"4px 10px 4px 5px",cursor:"pointer"}}>
+            <div style={{width:28,height:28,borderRadius:"50%",
+              background:`linear-gradient(135deg,${C.amber},#f97316)`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:13,fontWeight:800,color:"#07090f",flexShrink:0}}>
+              {displayName[0].toUpperCase()}
             </div>
-            {(user.org||getFullUser(user.email)?.org)&&
-              <div style={{fontSize:8,color:C.purple,fontFamily:"'DM Mono',monospace"}}>
-                🏢 {user.org||getFullUser(user.email)?.org}
+            <div style={{textAlign:"left"}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.2}}>
+                {firstName}
               </div>
-            }
-          </div>
-          <span style={{fontSize:8,color:C.dim}}>{showProfile?"▾":"▸"}</span>
-        </button>
-        {showProfile&&<ProfileDropdown user={user} onSignOut={onSignOut} onClose={()=>setShowProfile(false)} onUpdate={s=>{onUpdate&&onUpdate(s);setShowProfile(false);}}/>}
+              {(user.org||getFullUser(user.email)?.org)&&
+                <div style={{fontSize:8,color:C.purple,fontFamily:"'DM Mono',monospace"}}>
+                  🏢 {user.org||getFullUser(user.email)?.org}
+                </div>
+              }
+            </div>
+            <span style={{fontSize:8,color:C.dim}}>{showProfile?"▾":"▸"}</span>
+          </button>
+
+          {showProfile&&(
+            <ProfileDropdown
+              user={user}
+              onSignOut={onSignOut}
+              onClose={()=>setShowProfile(false)}
+              onOpenProfile={()=>setShowProfileModal(true)}
+              onOpenDesigns={()=>setShowDesignsModal(true)}
+              onOpenReports={()=>setShowReportsModal(true)}
+            />
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Modals rendered at this level — outside the dropdown, always mounted when active */}
+      {showProfileModal&&(
+        <ProfileModal
+          user={user}
+          onClose={()=>setShowProfileModal(false)}
+          onUpdate={s=>{ onUpdate&&onUpdate(s); }}
+        />
+      )}
+      {showDesignsModal&&(
+        <MyDesignsModal
+          user={user}
+          onClose={()=>setShowDesignsModal(false)}
+        />
+      )}
+      {showReportsModal&&(
+        <ReportHistoryModal
+          user={user}
+          onClose={()=>setShowReportsModal(false)}
+        />
+      )}
+    </>
   );
 }
 
