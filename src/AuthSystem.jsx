@@ -56,63 +56,141 @@ function verifyOTP(email, code) {
 }
 function clearOTP(email){ delete otpStore[email]; }
 
-/* ── User DB ── */
-function getUsers(){ try{return JSON.parse(localStorage.getItem("evtol_users")||"{}");}catch{return{};} }
-function saveUsers(u){ localStorage.setItem("evtol_users",JSON.stringify(u)); }
+/* ══════════════════════════════════════════════════════════════
+   SUPABASE CLIENT — cross-device persistence
+   Create a FREE project at https://supabase.com then:
+   1. Replace SUPABASE_URL and SUPABASE_ANON_KEY below
+   2. Run the SQL setup in your Supabase SQL editor (see README)
+   ══════════════════════════════════════════════════════════════ */
+const SUPABASE_URL  = "https://obribjypwwrbhsyjllua.supabase.co";
+const SUPABASE_KEY  = "sb_publishable_VGMuLb_kEVA8R8tvO-30jg_DO7Cj2Hk";
+
+async function sbFetch(path, opts={}){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers:{
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": opts.prefer||"return=representation",
+      ...opts.headers,
+    },
+    ...opts,
+  });
+  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error(`Supabase ${res.status}: ${t}`); }
+  const text=await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+/* ── User DB — Supabase table: evtol_users ── */
+async function getUsers(){ try{ return await sbFetch("evtol_users?select=*"); }catch{ return []; } }
+async function getUserByEmail(email){
+  try{
+    const rows=await sbFetch(`evtol_users?email=eq.${encodeURIComponent(email.trim().toLowerCase())}&select=*`);
+    return rows?.[0]||null;
+  }catch{ return null; }
+}
+async function getUserByMobileOrUsername(identifier){
+  try{
+    const id=identifier.trim().toLowerCase();
+    const rows=await sbFetch(`evtol_users?or=(mobile.eq.${encodeURIComponent(id)},username.eq.${encodeURIComponent(id)})&select=*`);
+    return rows?.[0]||null;
+  }catch{ return null; }
+}
+async function upsertUser(u){
+  try{
+    await sbFetch("evtol_users",{
+      method:"POST",
+      prefer:"resolution=merge-duplicates,return=representation",
+      headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify(u),
+    });
+  }catch(e){ console.error("upsertUser:",e); }
+}
+
+/* ── Session — still localStorage (per-device token) ── */
 function getSession(){ try{return JSON.parse(localStorage.getItem("evtol_session")||"null");}catch{return null;} }
 function saveSession(s){ localStorage.setItem("evtol_session",JSON.stringify(s)); }
 function clearSession(){ localStorage.removeItem("evtol_session"); }
 
-/* ── Find user by email, mobile, or username ── */
-function findUser(identifier) {
-  const users = getUsers();
-  const id = identifier.trim().toLowerCase();
-  // search by email
-  if(users[id]) return users[id];
-  // search by mobile or username
-  return Object.values(users).find(u =>
-    u.mobile === id || u.username === id
-  ) || null;
+/* ── Find user (async, checks Supabase) ── */
+async function findUser(identifier){
+  const id=identifier.trim().toLowerCase();
+  const byEmail=await getUserByEmail(id);
+  if(byEmail) return byEmail;
+  return getUserByMobileOrUsername(id);
 }
 
-/* ── Notifications ── */
-function getNotifs(id){ try{return JSON.parse(localStorage.getItem(`evtol_notifs_${id}`)||"[]");}catch{return[];} }
-function saveNotifs(id,n){ localStorage.setItem(`evtol_notifs_${id}`,JSON.stringify(n)); }
-function addNotif(id,{title,body,type="info"}){
-  const n=getNotifs(id);
-  n.unshift({id:id+"_"+Date.now(),title,body,type,read:false,time:nowISO()});
-  saveNotifs(id,n.slice(0,50));
+/* ── Notifications — Supabase table: evtol_notifs ── */
+async function getNotifs(userId){
+  try{
+    return await sbFetch(`evtol_notifs?user_id=eq.${userId}&order=time.desc&limit=50&select=*`)||[];
+  }catch{ return []; }
+}
+async function saveNotifs(userId, notifs){
+  // We save individually; this bulk approach replaces all notifs for user
+  // For simplicity just use addNotif for new ones
+}
+async function addNotif(userId,{title,body,type="info"}){
+  try{
+    await sbFetch("evtol_notifs",{
+      method:"POST",
+      body:JSON.stringify({id:userId+"_"+Date.now(),user_id:userId,title,body,type,read:false,time:nowISO()}),
+    });
+  }catch(e){ console.warn("addNotif failed:",e); }
+}
+async function markNotifRead(notifId){
+  try{ await sbFetch(`evtol_notifs?id=eq.${notifId}`,{method:"PATCH",body:JSON.stringify({read:true})}); }catch{}
+}
+async function deleteNotif(notifId){
+  try{ await sbFetch(`evtol_notifs?id=eq.${notifId}`,{method:"DELETE"}); }catch{}
 }
 
-/* ── Designs DB ── */
-function getDesigns(userId){ try{return JSON.parse(localStorage.getItem(`evtol_designs_${userId}`)||"[]");}catch{return[];} }
-function saveDesigns(userId,d){ localStorage.setItem(`evtol_designs_${userId}`,JSON.stringify(d)); }
-function saveDesign(userId,{name,params,results,pdfHtml}){
-  const designs=getDesigns(userId);
-  designs.unshift({id:uid(),name,params,results,pdfHtml,savedAt:nowISO()});
-  saveDesigns(userId,designs.slice(0,20)); // max 20 saved designs
+/* ── Designs DB — Supabase table: evtol_designs ── */
+async function getDesigns(userId){
+  try{
+    return await sbFetch(`evtol_designs?user_id=eq.${userId}&order=saved_at.desc&limit=20&select=*`)||[];
+  }catch{ return []; }
+}
+async function saveDesign(userId,{name,params,results,pdfHtml}){
+  try{
+    await sbFetch("evtol_designs",{
+      method:"POST",
+      body:JSON.stringify({id:uid(),user_id:userId,name,params:JSON.stringify(params),results:JSON.stringify(results),pdf_html:pdfHtml,saved_at:nowISO()}),
+    });
+  }catch(e){ console.error("saveDesign:",e); }
+}
+async function deleteDesign(designId){
+  try{ await sbFetch(`evtol_designs?id=eq.${designId}`,{method:"DELETE"}); }catch{}
 }
 
-/* ── Report History DB ── */
-function getReports(userId){ try{return JSON.parse(localStorage.getItem(`evtol_reports_${userId}`)||"[]");}catch{return[];} }
-function saveReports(userId,r){ localStorage.setItem(`evtol_reports_${userId}`,JSON.stringify(r)); }
-function addReport(userId,{name,params,results,pdfHtml}){
-  const reports=getReports(userId);
-  reports.unshift({id:uid(),name,params,results,pdfHtml,generatedAt:nowISO()});
-  saveReports(userId,reports.slice(0,30));
+/* ── Report History — Supabase table: evtol_reports ── */
+async function getReports(userId){
+  try{
+    return await sbFetch(`evtol_reports?user_id=eq.${userId}&order=generated_at.desc&limit=30&select=*`)||[];
+  }catch{ return []; }
+}
+async function addReport(userId,{name,params,results,pdfHtml}){
+  try{
+    await sbFetch("evtol_reports",{
+      method:"POST",
+      body:JSON.stringify({id:uid(),user_id:userId,name,params:JSON.stringify(params),results:JSON.stringify(results),pdf_html:pdfHtml,generated_at:nowISO()}),
+    });
+  }catch(e){ console.error("addReport:",e); }
+}
+async function deleteReport(reportId){
+  try{ await sbFetch(`evtol_reports?id=eq.${reportId}`,{method:"DELETE"}); }catch{}
 }
 
-/* ── Get full user from storage ── */
-function getFullUser(email){
-  const users=getUsers();
-  return users[email?.toLowerCase()]||null;
+/* ── Get full user from Supabase ── */
+async function getFullUser(email){
+  return getUserByEmail(email);
 }
 
 /* ── Fix session name — handle old/missing firstName/lastName ── */
 function buildDisplayName(u){
   if(!u) return "User";
-  const fn=u.firstName||"";
-  const ln=u.lastName||"";
+  const fn=u.firstName||u.first_name||"";
+  const ln=u.lastName||u.last_name||"";
   const full=`${fn} ${ln}`.trim();
   if(full) return full;
   if(u.name&&u.name!=="undefined undefined") return u.name;
@@ -379,16 +457,17 @@ function ResetPasswordScreen({email, onDone}){
     if(pw.length<8) return setErr("Password must be at least 8 characters.");
     if(pw!==pw2) return setErr("Passwords do not match.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,400));
-    const users=getUsers();
-    // find user by email
-    const u=users[email.toLowerCase()];
-    if(!u){ setLoading(false); return setErr("Account not found."); }
-    users[email.toLowerCase()]={...u, pwHash:btoa(pw)};
-    saveUsers(users);
-    setLoading(false);
-    addNotif(u.id,{title:"Password Reset",body:"Your password has been reset successfully.",type:"success"});
-    onDone();
+    try{
+      const u=await getUserByEmail(email.toLowerCase());
+      if(!u){ setLoading(false); return setErr("Account not found."); }
+      await upsertUser({...u, pw_hash:btoa(pw), pwHash:btoa(pw)});
+      setLoading(false);
+      addNotif(u.id,{title:"Password Reset",body:"Your password has been reset successfully.",type:"success"});
+      onDone();
+    }catch(e){
+      setLoading(false);
+      setErr("Failed to reset password — check connection. "+e.message);
+    }
   };
 
   return(
@@ -483,27 +562,29 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
     if(regPw.length<8) return setErr("Password must be at least 8 characters.");
     if(regPw!==regPw2) return setErr("Passwords do not match.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,400));
-    const users=getUsers();
-    const emailKey=regEmail.trim().toLowerCase();
-    if(users[emailKey]){ setLoading(false); return setErr("An account with this email already exists. Please log in."); }
-    // check mobile uniqueness
-    if(mobile && Object.values(users).find(u=>u.mobile===mobile.trim())){
-      setLoading(false); return setErr("This mobile number is already registered.");
+    try{
+      const emailKey=regEmail.trim().toLowerCase();
+      const existing=await getUserByEmail(emailKey);
+      if(existing){ setLoading(false); return setErr("An account with this email already exists. Please log in."); }
+      const username=`${firstName.toLowerCase()}${lastName.toLowerCase()}`.replace(/\s/g,"");
+      const u={
+        id:uid(), first_name:firstName.trim(), last_name:lastName.trim(),
+        // keep camelCase aliases for compatibility
+        firstName:firstName.trim(), lastName:lastName.trim(),
+        email:emailKey, mobile:mobile.trim()||null,
+        username, org:org.trim()||null,
+        pw_hash:btoa(regPw), pwHash:btoa(regPw),
+        created_at:nowISO(), createdAt:nowISO(),
+        avatar:firstName[0].toUpperCase(),
+      };
+      await upsertUser(u);
+      setLoading(false);
+      addNotif(u.id,{title:"Welcome to eVTOL Sizer!",body:`Hi ${u.firstName}, your account is ready.`,type:"success"});
+      proceedToOTP(u,emailKey);
+    }catch(e){
+      setLoading(false);
+      setErr("Registration failed — check your connection and try again. "+e.message);
     }
-    const username=`${firstName.toLowerCase()}${lastName.toLowerCase()}`.replace(/\s/g,"");
-    const u={
-      id:uid(), firstName:firstName.trim(), lastName:lastName.trim(),
-      email:emailKey, mobile:mobile.trim()||null,
-      username, org:org.trim()||null,
-      pwHash:btoa(regPw), createdAt:nowISO(),
-      avatar:firstName[0].toUpperCase(),
-    };
-    users[emailKey]=u;
-    saveUsers(users);
-    setLoading(false);
-    addNotif(u.id,{title:"Welcome to eVTOL Sizer!",body:`Hi ${u.firstName}, your account is ready.`,type:"success"});
-    proceedToOTP(u,emailKey);
   };
 
   /* ── LOGIN ── */
@@ -512,19 +593,24 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
     if(!loginId.trim()) return setErr("Enter your email, mobile, or username.");
     if(!loginPw) return setErr("Password is required.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,400));
-    const u=findUser(loginId.trim());
-    if(!u){
+    try{
+      const u=await findUser(loginId.trim());
+      if(!u){
+        setLoading(false);
+        return setErr("No account found with that email, mobile, or username.");
+      }
+      const storedHash=u.pw_hash||u.pwHash||"";
+      if(storedHash!==btoa(loginPw)){
+        setLoading(false);
+        setLoginPwErr("Wrong password. Please try again.");
+        return;
+      }
       setLoading(false);
-      return setErr("No account found with that email, mobile, or username.");
-    }
-    if(u.pwHash!==btoa(loginPw)){
+      proceedToOTP(u,u.email);
+    }catch(e){
       setLoading(false);
-      setLoginPwErr("Wrong password. Please try again.");
-      return;
+      setErr("Login failed — check your connection. "+e.message);
     }
-    setLoading(false);
-    proceedToOTP(u,u.email);
   };
 
   /* ── GOOGLE ── */
@@ -533,19 +619,24 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
     if(!googleEmail.trim()) return setErr("Enter your Gmail address.");
     if(!googleEmail.includes("@")) return setErr("Enter a valid email.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,400));
-    const gEmail=googleEmail.trim().toLowerCase();
-    const users=getUsers();
-    let u=users[gEmail];
-    if(!u){
-      const nameParts=gEmail.split("@")[0].replace(/[._]/g," ").split(" ");
-      u={id:uid(),firstName:nameParts[0]||"",lastName:nameParts[1]||"",
-        email:gEmail,mobile:null,username:gEmail.split("@")[0],org:null,
-        pwHash:"",provider:"google",createdAt:nowISO(),avatar:(nameParts[0]||"G")[0].toUpperCase()};
-      users[gEmail]=u; saveUsers(users);
+    try{
+      const gEmail=googleEmail.trim().toLowerCase();
+      let u=await getUserByEmail(gEmail);
+      if(!u){
+        const nameParts=gEmail.split("@")[0].replace(/[._]/g," ").split(" ");
+        u={id:uid(),first_name:nameParts[0]||"",last_name:nameParts[1]||"",
+          firstName:nameParts[0]||"",lastName:nameParts[1]||"",
+          email:gEmail,mobile:null,username:gEmail.split("@")[0],org:null,
+          pw_hash:"",pwHash:"",provider:"google",
+          created_at:nowISO(),createdAt:nowISO(),avatar:(nameParts[0]||"G")[0].toUpperCase()};
+        await upsertUser(u);
+      }
+      setLoading(false);
+      proceedToOTP(u,gEmail);
+    }catch(e){
+      setLoading(false);
+      setErr("Google sign-in failed — check your connection. "+e.message);
     }
-    setLoading(false);
-    proceedToOTP(u,gEmail);
   };
 
   /* ── FORGOT PASSWORD ── */
@@ -553,14 +644,17 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
     reset();
     if(!forgotEmail.includes("@")) return setErr("Enter your registered email.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,400));
-    const users=getUsers();
-    const u=users[forgotEmail.trim().toLowerCase()];
-    if(!u){ setLoading(false); return setErr("No account found with that email."); }
-    setLoading(false);
-    otpEmail.current=forgotEmail.trim().toLowerCase();
-    pendingUser.current=u;
-    setStage("reset_otp");
+    try{
+      const u=await getUserByEmail(forgotEmail.trim().toLowerCase());
+      if(!u){ setLoading(false); return setErr("No account found with that email."); }
+      setLoading(false);
+      otpEmail.current=forgotEmail.trim().toLowerCase();
+      pendingUser.current=u;
+      setStage("reset_otp");
+    }catch(e){
+      setLoading(false);
+      setErr("Could not reach server — check your connection. "+e.message);
+    }
   };
 
   /* ── ORG SSO ── */
@@ -569,20 +663,24 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
     if(!orgName.trim()) return setErr("Enter your organization name.");
     if(!orgCode.trim()) return setErr("Enter your SSO access code.");
     setLoading(true);
-    await new Promise(r=>setTimeout(r,600));
-    if(orgCode.toUpperCase()!=="WSU2025"){ setLoading(false); return setErr("Invalid SSO code. (Demo: use WSU2025)"); }
-    const name=orgName.trim();
-    const mockEmail=`user@${name.toLowerCase().replace(/\s+/g,"")}.edu`;
-    const users=getUsers();
-    let u=users[mockEmail];
-    if(!u){
-      u={id:uid(),firstName:"SSO",lastName:"User",email:mockEmail,mobile:null,
-        username:`sso_${name.toLowerCase().replace(/\s/g,"")}`,org:name,
-        pwHash:"",createdAt:nowISO(),avatar:name[0].toUpperCase()};
-      users[mockEmail]=u; saveUsers(users);
+    try{
+      if(orgCode.toUpperCase()!=="WSU2025"){ setLoading(false); return setErr("Invalid SSO code. (Demo: use WSU2025)"); }
+      const name=orgName.trim();
+      const mockEmail=`user@${name.toLowerCase().replace(/\s+/g,"")}.edu`;
+      let u=await getUserByEmail(mockEmail);
+      if(!u){
+        u={id:uid(),first_name:"SSO",last_name:"User",firstName:"SSO",lastName:"User",
+          email:mockEmail,mobile:null,
+          username:`sso_${name.toLowerCase().replace(/\s/g,"")}`,org:name,
+          pw_hash:"",pwHash:"",created_at:nowISO(),createdAt:nowISO(),avatar:name[0].toUpperCase()};
+        await upsertUser(u);
+      }
+      setLoading(false);
+      proceedToOTP(u,mockEmail);
+    }catch(e){
+      setLoading(false);
+      setErr("SSO failed — check your connection. "+e.message);
     }
-    setLoading(false);
-    proceedToOTP(u,mockEmail);
   };
 
   const GoogleSVG=()=>(
@@ -814,10 +912,21 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
    NOTIFICATION CENTER
    ══════════════════════════════════════════════════════════════ */
 function NotifCenter({user,onClose}){
-  const[notifs,setNotifs]=useState(()=>getNotifs(user.id));
-  const markAll=()=>{ const u=notifs.map(n=>({...n,read:true})); setNotifs(u); saveNotifs(user.id,u); };
-  const markOne=(id)=>{ const u=notifs.map(n=>n.id===id?{...n,read:true}:n); setNotifs(u); saveNotifs(user.id,u); };
-  const del=(id)=>{ const u=notifs.filter(n=>n.id!==id); setNotifs(u); saveNotifs(user.id,u); };
+  const[notifs,setNotifs]=useState([]);
+  useEffect(()=>{ getNotifs(user.id).then(n=>setNotifs(n||[])).catch(()=>{}); },[user.id]);
+  const markAll=async()=>{
+    const updated=notifs.map(n=>({...n,read:true}));
+    setNotifs(updated);
+    await Promise.all(updated.filter(n=>!n.read).map(n=>markNotifRead(n.id)));
+  };
+  const markOne=async(id)=>{
+    setNotifs(prev=>prev.map(n=>n.id===id?{...n,read:true}:n));
+    await markNotifRead(id);
+  };
+  const del=async(id)=>{
+    setNotifs(prev=>prev.filter(n=>n.id!==id));
+    await deleteNotif(id);
+  };
   const icons={info:"ℹ️",success:"✅",warn:"⚠️",error:"❌"};
   const unread=notifs.filter(n=>!n.read).length;
   return(
@@ -908,32 +1017,39 @@ function Popup({title,subtitle,onClose,children,width=520}){
 
 /* ── Profile Modal ── */
 function ProfileModal({user,onClose,onUpdate}){
-  // Always re-read from storage on mount to get freshest data
-  const fu=getFullUser(user.email);
+  const[fu,setFu]=useState(null);
+  const[loadingUser,setLoadingUser]=useState(true);
+
+  useEffect(()=>{
+    getUserByEmail(user.email).then(data=>{
+      setFu(data);
+      setLoadingUser(false);
+    }).catch(()=>setLoadingUser(false));
+  },[user.email]);
 
   // Smart name parsing — handle all account types
   const parsedFirstName=(()=>{
+    if(fu?.first_name) return fu.first_name;
     if(fu?.firstName) return fu.firstName;
-    // Try parsing from stored name
-    const n=(fu?.name||user.name||"").trim();
+    const n=(fu?.name||user.name||user.firstName||"").trim();
     if(n && n!=="undefined undefined" && n!=="undefined") return n.split(" ")[0]||"";
-    // Fall back to email prefix
     return (user.email||"").split("@")[0]||"";
   })();
   const parsedLastName=(()=>{
+    if(fu?.last_name) return fu.last_name;
     if(fu?.lastName) return fu.lastName;
     const n=(fu?.name||user.name||"").trim();
     if(n && n!=="undefined undefined" && n!=="undefined"){
       const parts=n.split(" ");
       return parts.slice(1).join(" ")||"";
     }
-    return "";
+    return user.lastName||"";
   })();
 
-  const[firstName,setFirstName]=useState(parsedFirstName);
-  const[lastName,setLastName]=useState(parsedLastName);
-  const[mobile,setMobile]=useState(fu?.mobile||user.mobile||"");
-  const[org,setOrg]=useState(fu?.org||user.org||"");
+  const[firstName,setFirstName]=useState(user.firstName||"");
+  const[lastName,setLastName]=useState(user.lastName||"");
+  const[mobile,setMobile]=useState(user.mobile||"");
+  const[org,setOrg]=useState(user.org||"");
   const[saving,setSaving]=useState(false);
   const[saved,setSaved]=useState(false);
   const[showPwSection,setShowPwSection]=useState(false);
@@ -943,56 +1059,71 @@ function ProfileModal({user,onClose,onUpdate}){
   const[pwErr,setPwErr]=useState("");
   const[pwOk,setPwOk]=useState("");
 
+  // Once fu loads from Supabase, sync fields
+  useEffect(()=>{
+    if(fu){
+      setFirstName(fu.first_name||fu.firstName||parsedFirstName);
+      setLastName(fu.last_name||fu.lastName||parsedLastName);
+      setMobile(fu.mobile||user.mobile||"");
+      setOrg(fu.org||user.org||"");
+    }
+  },[fu]);
+
   // Auto-generate username from name if not set
   const username=fu?.username||(parsedFirstName+parsedLastName).toLowerCase().replace(/\s/g,"")||user.email.split("@")[0];
 
   const handleSave=async()=>{
     setSaving(true);
-    await new Promise(r=>setTimeout(r,400));
-    const users=getUsers();
-    const u=users[user.email];
-    if(u){
-      const updatedUser={...u,
-        firstName:firstName.trim(),
-        lastName:lastName.trim(),
-        mobile:mobile.trim()||null,
-        org:org.trim()||null,
-        username:u.username||username,
-      };
-      users[user.email]=updatedUser;
-      saveUsers(users);
-      const newName=`${firstName.trim()} ${lastName.trim()}`.trim()||parsedFirstName;
-      const updatedSession={
-        ...getSession(),
-        name:newName,
-        firstName:firstName.trim(),
-        lastName:lastName.trim(),
-        mobile:mobile.trim()||null,
-        org:org.trim()||null,
-        avatar:newName[0].toUpperCase(),
-      };
-      saveSession(updatedSession);
-      onUpdate(updatedSession);
-      addNotif(user.id,{title:"Profile Updated",body:"Your profile details have been saved.",type:"success"});
+    try{
+      const u=await getUserByEmail(user.email);
+      if(u){
+        const updatedUser={...u,
+          first_name:firstName.trim(), last_name:lastName.trim(),
+          firstName:firstName.trim(), lastName:lastName.trim(),
+          mobile:mobile.trim()||null,
+          org:org.trim()||null,
+          username:u.username||username,
+        };
+        await upsertUser(updatedUser);
+        const newName=`${firstName.trim()} ${lastName.trim()}`.trim()||parsedFirstName;
+        const updatedSession={
+          ...getSession(),
+          name:newName,
+          firstName:firstName.trim(),
+          lastName:lastName.trim(),
+          mobile:mobile.trim()||null,
+          org:org.trim()||null,
+          avatar:newName[0].toUpperCase(),
+        };
+        saveSession(updatedSession);
+        onUpdate(updatedSession);
+        addNotif(user.id,{title:"Profile Updated",body:"Your profile details have been saved.",type:"success"});
+      }
+      setSaving(false); setSaved(true);
+      setTimeout(()=>setSaved(false),2500);
+    }catch(e){
+      setSaving(false);
+      console.error("Profile save failed:",e);
     }
-    setSaving(false); setSaved(true);
-    setTimeout(()=>setSaved(false),2500);
   };
 
   const handlePasswordChange=async()=>{
     setPwErr(""); setPwOk("");
-    const users=getUsers();
-    const u=users[user.email];
-    if(!u) return setPwErr("Account not found.");
-    if(u.pwHash!==btoa(oldPw)) return setPwErr("Current password is incorrect.");
-    if(newPw.length<8) return setPwErr("New password must be ≥ 8 characters.");
-    if(newPw!==newPw2) return setPwErr("New passwords do not match.");
-    users[user.email]={...u,pwHash:btoa(newPw)};
-    saveUsers(users);
-    addNotif(user.id,{title:"Password Changed",body:"Your password has been updated successfully.",type:"success"});
-    setPwOk("✓ Password changed successfully!");
-    setOldPw(""); setNewPw(""); setNewPw2("");
-    setTimeout(()=>setShowPwSection(false),1500);
+    try{
+      const u=await getUserByEmail(user.email);
+      if(!u) return setPwErr("Account not found.");
+      const storedHash=u.pw_hash||u.pwHash||"";
+      if(storedHash!==btoa(oldPw)) return setPwErr("Current password is incorrect.");
+      if(newPw.length<8) return setPwErr("New password must be ≥ 8 characters.");
+      if(newPw!==newPw2) return setPwErr("New passwords do not match.");
+      await upsertUser({...u, pw_hash:btoa(newPw), pwHash:btoa(newPw)});
+      addNotif(user.id,{title:"Password Changed",body:"Your password has been updated successfully.",type:"success"});
+      setPwOk("✓ Password changed successfully!");
+      setOldPw(""); setNewPw(""); setNewPw2("");
+      setTimeout(()=>setShowPwSection(false),1500);
+    }catch(e){
+      setPwErr("Failed to update password — check connection. "+e.message);
+    }
   };
 
   const displayAvatar=(firstName[0]||parsedFirstName[0]||user.email[0]||"?").toUpperCase();
@@ -1086,13 +1217,27 @@ function ProfileModal({user,onClose,onUpdate}){
 
 /* ── My Designs Modal ── */
 function MyDesignsModal({user,onClose}){
-  const[designs,setDesigns]=useState(()=>getDesigns(user.id));
+  const[designs,setDesigns]=useState([]);
+  const[loading,setLoading]=useState(true);
   const[confirm,setConfirm]=useState(null);
 
-  const handleDelete=(id)=>{
-    const updated=designs.filter(d=>d.id!==id);
-    setDesigns(updated);
-    saveDesigns(user.id,updated);
+  useEffect(()=>{
+    getDesigns(user.id).then(d=>{
+      // Supabase stores params/results as JSON strings, parse them back
+      setDesigns((d||[]).map(x=>({
+        ...x,
+        params: typeof x.params==="string"?JSON.parse(x.params||"{}"):x.params,
+        results: typeof x.results==="string"?JSON.parse(x.results||"{}"):x.results,
+        pdfHtml: x.pdf_html||x.pdfHtml||null,
+        savedAt: x.saved_at||x.savedAt,
+      })));
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[user.id]);
+
+  const handleDelete=async(id)=>{
+    setDesigns(prev=>prev.filter(d=>d.id!==id));
+    await deleteDesign(id);
     setConfirm(null);
   };
 
@@ -1105,8 +1250,13 @@ function MyDesignsModal({user,onClose}){
   };
 
   return(
-    <Popup title="My Designs" subtitle={`${designs.length} saved design${designs.length!==1?"s":""}`} onClose={onClose} width={580}>
-      {designs.length===0?(
+    <Popup title="My Designs" subtitle={loading?"Loading...":
+      `${designs.length} saved design${designs.length!==1?"s":""}`} onClose={onClose} width={580}>
+      {loading?(
+        <div style={{textAlign:"center",padding:"48px 0",color:C.muted,fontFamily:"'DM Mono',monospace"}}>
+          <div style={{fontSize:32,marginBottom:12}}>⏳</div>Loading your designs...
+        </div>
+      ):designs.length===0?(
         <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
           <div style={{fontSize:48,marginBottom:16}}>✈️</div>
           <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8}}>No saved designs yet</div>
@@ -1181,7 +1331,20 @@ function MyDesignsModal({user,onClose}){
 
 /* ── Report History Modal ── */
 function ReportHistoryModal({user,onClose}){
-  const[reports,setReports]=useState(()=>getReports(user.id));
+  const[reports,setReports]=useState([]);
+  const[loadingR,setLoadingR]=useState(true);
+
+  useEffect(()=>{
+    getReports(user.id).then(r=>{
+      setReports((r||[]).map(x=>({
+        ...x,
+        results: typeof x.results==="string"?JSON.parse(x.results||"{}"):x.results,
+        pdfHtml: x.pdf_html||x.pdfHtml||null,
+        generatedAt: x.generated_at||x.generatedAt,
+      })));
+      setLoadingR(false);
+    }).catch(()=>setLoadingR(false));
+  },[user.id]);
 
   const handleOpen=(r)=>{
     if(!r.pdfHtml){ alert("PDF not available for this report."); return; }
@@ -1190,15 +1353,19 @@ function ReportHistoryModal({user,onClose}){
     w.document.close();
   };
 
-  const handleDelete=(id)=>{
-    const updated=reports.filter(r=>r.id!==id);
-    setReports(updated);
-    saveReports(user.id,updated);
+  const handleDelete=async(id)=>{
+    setReports(prev=>prev.filter(r=>r.id!==id));
+    await deleteReport(id);
   };
 
   return(
-    <Popup title="Report History" subtitle={`${reports.length} report${reports.length!==1?"s":""} generated`} onClose={onClose} width={580}>
-      {reports.length===0?(
+    <Popup title="Report History" subtitle={loadingR?"Loading...":
+      `${reports.length} report${reports.length!==1?"s":""} generated`} onClose={onClose} width={580}>
+      {loadingR?(
+        <div style={{textAlign:"center",padding:"48px 0",color:C.muted,fontFamily:"'DM Mono',monospace"}}>
+          <div style={{fontSize:32,marginBottom:12}}>⏳</div>Loading report history...
+        </div>
+      ):reports.length===0?(
         <div style={{textAlign:"center",padding:"48px 0"}}>
           <div style={{fontSize:48,marginBottom:16}}>📄</div>
           <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8}}>No reports yet</div>
@@ -1248,7 +1415,8 @@ function ReportHistoryModal({user,onClose}){
    PROFILE DROPDOWN — no modal state here, just triggers
    ══════════════════════════════════════════════════════════════ */
 function ProfileDropdown({user,onSignOut,onClose,onOpenProfile,onOpenDesigns,onOpenReports}){
-  const fu=getFullUser(user.email);
+  const[fu,setFu]=useState(null);
+  useEffect(()=>{ getUserByEmail(user.email).then(setFu).catch(()=>{}); },[user.email]);
   const displayName=buildDisplayName({...fu,...user});
 
   const items=[
@@ -1349,9 +1517,13 @@ function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
   const[showProfileModal,setShowProfileModal]=useState(false);
   const[showDesignsModal,setShowDesignsModal]=useState(false);
   const[showReportsModal,setShowReportsModal]=useState(false);
+  const[userOrg,setUserOrg]=useState(user?.org||"");
 
   useEffect(()=>{
-    if(user) setNotifCount(getNotifs(user.id).filter(x=>!x.read).length);
+    if(!user) return;
+    // Load notif count and org from Supabase
+    getNotifs(user.id).then(n=>setNotifCount((n||[]).filter(x=>!x.read).length)).catch(()=>{});
+    getUserByEmail(user.email).then(fu=>{ if(fu?.org) setUserOrg(fu.org); }).catch(()=>{});
   },[user,showNotifs]);
 
   useEffect(()=>{
@@ -1379,7 +1551,7 @@ function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
     </div>
   );
 
-  const displayName=buildDisplayName({...getFullUser(user.email),...user});
+  const displayName=buildDisplayName(user);
   const firstName=displayName.split(" ")[0]||displayName;
 
   return(
@@ -1419,11 +1591,11 @@ function UserHeaderBar({user,onSignOut,onSignIn,onUpdate}){
               <div style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.2}}>
                 {firstName}
               </div>
-              {(user.org||getFullUser(user.email)?.org)&&
+              {userOrg&&(
                 <div style={{fontSize:8,color:C.purple,fontFamily:"'DM Mono',monospace"}}>
-                  🏢 {user.org||getFullUser(user.email)?.org}
+                  🏢 {userOrg}
                 </div>
-              }
+              )}
             </div>
             <span style={{fontSize:8,color:C.dim}}>{showProfile?"▾":"▸"}</span>
           </button>
