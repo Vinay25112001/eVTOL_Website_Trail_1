@@ -3460,6 +3460,8 @@ export default function App(){
             )}
 
 
+            {/* ──── TAB 10: OPENVSP EXPORT ──── */}
+            {tab===10&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {/* Header banner */}
                 <div style={{background:"linear-gradient(135deg,#0d1117 0%,#0f172a 100%)",
