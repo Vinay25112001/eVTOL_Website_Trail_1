@@ -63,17 +63,25 @@ function clearOTP(email){ delete otpStore[email]; }
    2. Run the SQL setup in your Supabase SQL editor (see README)
    ══════════════════════════════════════════════════════════════ */
 const SUPABASE_URL  = "https://obribjypwwrbhsyjllua.supabase.co";
-const SUPABASE_KEY  = "sb_publishable_VGMuLb_kEVA8R8tvO-30jg_DO7Cj2Hk";
+const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9icmlianlwd3dyYmhzeWpsbHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjU1MjIsImV4cCI6MjA4OTIwMTUyMn0.Rq2_KfHlHnoluGJY3AcBIqcbuMFuLBitU-Y6aBWyoJ4";
 
 async function sbFetch(path, opts={}){
+  // New publishable keys use "sb_publishable_" prefix — need different auth header
+  const isNewKey = SUPABASE_KEY.startsWith("sb_");
+  const headers = isNewKey ? {
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    "Prefer": opts.prefer||"return=representation",
+    ...opts.headers,
+  } : {
+    "apikey": SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    "Prefer": opts.prefer||"return=representation",
+    ...opts.headers,
+  };
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers:{
-      "apikey": SUPABASE_KEY,
-      "Authorization": `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-      "Prefer": opts.prefer||"return=representation",
-      ...opts.headers,
-    },
+    headers,
     ...opts,
   });
   if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error(`Supabase ${res.status}: ${t}`); }
