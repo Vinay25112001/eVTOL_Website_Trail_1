@@ -109,8 +109,20 @@ async function getUserByMobileOrUsername(identifier){
 
 async function upsertUser(u){
   try{
-    // Remove undefined values
-    const clean=Object.fromEntries(Object.entries(u).filter(([,v])=>v!==undefined));
+    // Only send columns that exist in Supabase (snake_case only)
+    const clean={
+      id:         u.id,
+      email:      u.email?.toLowerCase(),
+      first_name: u.first_name||u.firstName||"",
+      last_name:  u.last_name||u.lastName||"",
+      username:   u.username||"",
+      mobile:     u.mobile||null,
+      org:        u.org||null,
+      pw_hash:    u.pw_hash||u.pwHash||"",
+      provider:   u.provider||null,
+      avatar:     u.avatar||"",
+      created_at: u.created_at||u.createdAt||nowISO(),
+    };
     const result=await sbFetch("evtol_users",{
       method:"POST",
       prefer:"resolution=merge-duplicates,return=representation",
@@ -204,8 +216,8 @@ async function getFullUser(email){
 /* ── Fix session name — handle old/missing firstName/lastName ── */
 function buildDisplayName(u){
   if(!u) return "User";
-  const fn=u.firstName||u.first_name||"";
-  const ln=u.lastName||u.last_name||"";
+  const fn=u.first_name||u.firstName||"";
+  const ln=u.last_name||u.lastName||"";
   const full=`${fn} ${ln}`.trim();
   if(full) return full;
   if(u.name&&u.name!=="undefined undefined") return u.name;
@@ -557,15 +569,17 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
   const handleOTPVerified=()=>{
     const u=pendingUser.current;
     if(!u) return;
-    const displayName=buildDisplayName(u);
+    const fn=u.first_name||u.firstName||"";
+    const ln=u.last_name||u.lastName||"";
+    const displayName=buildDisplayName({firstName:fn,lastName:ln,email:u.email});
     const session={
       id:u.id, name:displayName,
-      firstName:u.firstName||"", lastName:u.lastName||"",
+      firstName:fn, lastName:ln,
       email:u.email, mobile:u.mobile||null, org:u.org||null,
       avatar:displayName[0].toUpperCase(), token:uid()
     };
     saveSession(session);
-    addNotif(u.id,{title:"Login Successful",body:`Welcome back, ${u.firstName||displayName}! OTP verified.`,type:"success"});
+    addNotif(u.id,{title:"Login Successful",body:`Welcome back, ${fn||displayName}! OTP verified.`,type:"success"});
     onAuth(session);
   };
 
@@ -591,13 +605,14 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
       if(existing){ setLoading(false); return setErr("An account with this email already exists. Please log in."); }
       const username=`${firstName.toLowerCase()}${lastName.toLowerCase()}`.replace(/\s/g,"");
       const u={
-        id:uid(), first_name:firstName.trim(), last_name:lastName.trim(),
-        // keep camelCase aliases for compatibility
+        id:uid(),
+        first_name:firstName.trim(), last_name:lastName.trim(),
+        // keep camelCase only for in-memory session use — NOT sent to Supabase
         firstName:firstName.trim(), lastName:lastName.trim(),
         email:emailKey, mobile:mobile.trim()||null,
         username, org:org.trim()||null,
-        pw_hash:btoa(regPw), pwHash:btoa(regPw),
-        created_at:nowISO(), createdAt:nowISO(),
+        pw_hash:btoa(regPw),
+        created_at:nowISO(),
         avatar:firstName[0].toUpperCase(),
       };
       await upsertUser(u);
@@ -647,11 +662,12 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
       let u=await getUserByEmail(gEmail);
       if(!u){
         const nameParts=gEmail.split("@")[0].replace(/[._]/g," ").split(" ");
-        u={id:uid(),first_name:nameParts[0]||"",last_name:nameParts[1]||"",
-          firstName:nameParts[0]||"",lastName:nameParts[1]||"",
-          email:gEmail,mobile:null,username:gEmail.split("@")[0],org:null,
-          pw_hash:"",pwHash:"",provider:"google",
-          created_at:nowISO(),createdAt:nowISO(),avatar:(nameParts[0]||"G")[0].toUpperCase()};
+        u={id:uid(),
+          first_name:nameParts[0]||"", last_name:nameParts[1]||"",
+          firstName:nameParts[0]||"", lastName:nameParts[1]||"",
+          email:gEmail, mobile:null, username:gEmail.split("@")[0], org:null,
+          pw_hash:"", provider:"google",
+          created_at:nowISO(), avatar:(nameParts[0]||"G")[0].toUpperCase()};
         await upsertUser(u);
       }
       setLoading(false);
@@ -692,10 +708,11 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
       const mockEmail=`user@${name.toLowerCase().replace(/\s+/g,"")}.edu`;
       let u=await getUserByEmail(mockEmail);
       if(!u){
-        u={id:uid(),first_name:"SSO",last_name:"User",firstName:"SSO",lastName:"User",
-          email:mockEmail,mobile:null,
-          username:`sso_${name.toLowerCase().replace(/\s/g,"")}`,org:name,
-          pw_hash:"",pwHash:"",created_at:nowISO(),createdAt:nowISO(),avatar:name[0].toUpperCase()};
+        u={id:uid(), first_name:"SSO", last_name:"User",
+          firstName:"SSO", lastName:"User",
+          email:mockEmail, mobile:null,
+          username:`sso_${name.toLowerCase().replace(/\s/g,"")}`, org:name,
+          pw_hash:"", created_at:nowISO(), avatar:name[0].toUpperCase()};
         await upsertUser(u);
       }
       setLoading(false);
