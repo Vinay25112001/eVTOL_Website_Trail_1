@@ -66,53 +66,60 @@ const SUPABASE_URL  = "https://obribjypwwrbhsyjllua.supabase.co";
 const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9icmlianlwd3dyYmhzeWpsbHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjU1MjIsImV4cCI6MjA4OTIwMTUyMn0.Rq2_KfHlHnoluGJY3AcBIqcbuMFuLBitU-Y6aBWyoJ4";
 
 async function sbFetch(path, opts={}){
-  // New publishable keys use "sb_publishable_" prefix — need different auth header
-  const isNewKey = SUPABASE_KEY.startsWith("sb_");
-  const headers = isNewKey ? {
-    "Authorization": `Bearer ${SUPABASE_KEY}`,
-    "Content-Type": "application/json",
-    "Prefer": opts.prefer||"return=representation",
-    ...opts.headers,
-  } : {
-    "apikey": SUPABASE_KEY,
-    "Authorization": `Bearer ${SUPABASE_KEY}`,
-    "Content-Type": "application/json",
-    "Prefer": opts.prefer||"return=representation",
-    ...opts.headers,
-  };
+  const { prefer, headers:extraHeaders={}, body, method="GET" } = opts;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers,
-    ...opts,
+    method,
+    headers:{
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": prefer||"return=representation",
+      ...extraHeaders,
+    },
+    ...(body ? { body } : {}),
   });
-  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error(`Supabase ${res.status}: ${t}`); }
+  if(!res.ok){
+    const t=await res.text().catch(()=>"");
+    console.error(`Supabase error ${res.status} on ${method} ${path}:`, t);
+    throw new Error(`Supabase ${res.status}: ${t}`);
+  }
   const text=await res.text();
   return text ? JSON.parse(text) : null;
 }
 
 /* ── User DB — Supabase table: evtol_users ── */
 async function getUsers(){ try{ return await sbFetch("evtol_users?select=*"); }catch{ return []; } }
+
 async function getUserByEmail(email){
+  if(!email) return null;
   try{
     const rows=await sbFetch(`evtol_users?email=eq.${encodeURIComponent(email.trim().toLowerCase())}&select=*`);
+    console.log("getUserByEmail:", email, "→ found:", rows?.length, rows?.[0]?.email);
     return rows?.[0]||null;
-  }catch{ return null; }
+  }catch(e){ console.error("getUserByEmail error:", e); return null; }
 }
+
 async function getUserByMobileOrUsername(identifier){
   try{
     const id=identifier.trim().toLowerCase();
     const rows=await sbFetch(`evtol_users?or=(mobile.eq.${encodeURIComponent(id)},username.eq.${encodeURIComponent(id)})&select=*`);
     return rows?.[0]||null;
-  }catch{ return null; }
+  }catch(e){ console.error("getUserByMobileOrUsername error:", e); return null; }
 }
+
 async function upsertUser(u){
   try{
-    await sbFetch("evtol_users",{
+    // Remove undefined values
+    const clean=Object.fromEntries(Object.entries(u).filter(([,v])=>v!==undefined));
+    const result=await sbFetch("evtol_users",{
       method:"POST",
       prefer:"resolution=merge-duplicates,return=representation",
       headers:{"Prefer":"resolution=merge-duplicates,return=representation"},
-      body:JSON.stringify(u),
+      body:JSON.stringify(clean),
     });
-  }catch(e){ console.error("upsertUser:",e); }
+    console.log("upsertUser success:", clean.email, result);
+    return result;
+  }catch(e){ console.error("upsertUser error:",e); throw e; }
 }
 
 /* ── Session — still localStorage (per-device token) ── */
@@ -501,6 +508,14 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
   // stage: "creds" | "otp" | "reset_otp" | "reset_pw" | "success"
   const[stage,setStage]=useState("creds");
   const[flow,setFlow]=useState(defaultFlow);
+  const[dbStatus,setDbStatus]=useState("checking"); // "checking"|"ok"|"error"
+
+  // Test Supabase connection on mount
+  useEffect(()=>{
+    sbFetch("evtol_users?limit=1&select=id")
+      .then(()=>setDbStatus("ok"))
+      .catch(e=>{ console.error("DB connection test failed:",e); setDbStatus("error"); });
+  },[]);
 
   // Register fields
   const[firstName,setFirstName]=useState("");
@@ -732,6 +747,20 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
           </div>
           <button onClick={onClose} type="button"
             style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
+        </div>
+
+        {/* DB Connection Status */}
+        <div style={{marginBottom:14,padding:"7px 12px",borderRadius:6,fontSize:10,fontFamily:"'DM Mono',monospace",
+          background:dbStatus==="ok"?`${C.green}15`:dbStatus==="error"?`${C.red}15`:`${C.amber}15`,
+          border:`1px solid ${dbStatus==="ok"?C.green:dbStatus==="error"?C.red:C.amber}44`,
+          color:dbStatus==="ok"?C.green:dbStatus==="error"?C.red:C.amber,
+          display:"flex",alignItems:"center",gap:8}}>
+          {dbStatus==="checking"&&<span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span>}
+          {dbStatus==="ok"&&"✅"}
+          {dbStatus==="error"&&"❌"}
+          {dbStatus==="checking"&&" Connecting to database..."}
+          {dbStatus==="ok"&&" Cloud database connected — accounts sync across all devices"}
+          {dbStatus==="error"&&" Database unreachable — check your internet connection"}
         </div>
 
         {/* ── OTP VERIFY (after login/register/google/org) ── */}
