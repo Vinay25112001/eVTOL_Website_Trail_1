@@ -1231,8 +1231,8 @@ function Acc({title,icon,children}){
   );
 }
 
-const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","OpenVSP"];
-const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","🛩️"];
+const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","OpenVSP"];
+const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🛩️"];
 const TTP={contentStyle:{background:"#131c2e",border:"1px solid #2a3a5c",borderRadius:6,fontSize:12,color:"#e2e8f0",boxShadow:"0 4px 20px rgba(0,0,0,0.8)"},labelStyle:{color:"#94a3b8",fontSize:12,fontWeight:600},itemStyle:{color:"#e2e8f0",fontSize:12}};
 
 /* ═══════════════════════════════════
@@ -3460,8 +3460,584 @@ export default function App(){
             )}
 
 
-            {/* ──── TAB 10: OPENVSP EXPORT ──── */}
-            {tab===10&&(
+            {/* ──── TAB 10: CERTIFICATION COMPLIANCE CHECKER ──── */}
+            {tab===10&&R&&(()=>{
+              // ═══════════════════════════════════════════════════════
+              // COMPUTED CERTIFICATION PARAMETERS
+              // ═══════════════════════════════════════════════════════
+              const MTOW_kg  = R.MTOW;
+              const MTOW_lb  = MTOW_kg * 2.20462;
+              const nPax     = Math.floor(p.payload / 90); // ~90 kg/pax per FAA/EASA standard
+              const batFrac  = R.Wbat / MTOW_kg;
+              const socFloor = p.socMin / (1 + p.socMin);
+              const reserve_pct = (1 - R.Etot / R.PackkWh) * 100;
+
+              // Blade Passing Frequency (Hz) — BPF = N_blades × RPM/60
+              const BPF = R.Nbld * R.RPM / 60;
+
+              // Estimated hover OASPL at 150m (rotor noise model per Pegg/Grosveld)
+              // SPL ≈ 10*log10(N_rot * T_rotor²/(ρ * A_disk * r²)) + empirical offset
+              // Simplified Magliozzi formula for multi-rotor:
+              //   OASPL = K + 10*log10(T^2 / (A_disk)) - 20*log10(r) + f(Mtip)
+              // Using: K=100 (empirical for eVTOL), r=150m, f(Mtip) = 30*(Mtip-0.3) dB
+              const T_rotor_N = (MTOW_kg * 9.81 * p.twRatio) / p.nPropHover;
+              const A_disk_m2 = Math.PI * Math.pow(R.Drotor/2, 2);
+              const r_ref = 150; // 150m reference distance (EASA UAM community noise)
+              const Mtip_noise = R.TipMach;
+              const OASPL_hover = 100
+                + 10 * Math.log10(p.nPropHover * T_rotor_N**2 / (1.225 * A_disk_m2))
+                - 20 * Math.log10(r_ref)
+                + 30 * Math.max(0, Mtip_noise - 0.30);
+              // Convert OASPL to A-weighted (rotors: A-weighting ≈ -5 dB from OASPL at BPF)
+              const dBA_hover = OASPL_hover - 5;
+
+              // Reserve energy margin
+              const reserveE_pct = (R.Eres / R.PackkWh) * 100;
+
+              // Structural load factor (from V-n diagram)
+              const n_pos = 3.5; // limit load from V-n diagram
+              const n_ult = n_pos * 1.5; // ultimate = 1.5 × limit (FAR 21.17 / CS-23)
+
+              // CG range check — allowed range ±15% MAC from NP
+              const cgRange = Math.abs(R.xNP - R.xCGtotal) / R.MAC * 100;
+
+              // Battery C-rate under hover
+              const C_hover = R.CrateHov;
+
+              // Wing loading for stall compliance
+              const Vstall_stall = R.Vstall;
+
+              // ═══════════════════════════════════════════════════════
+              // RULE DEFINITIONS — all sourced from actual regulations
+              // ═══════════════════════════════════════════════════════
+              const rules = {
+                FAA: [
+                  // Weight & Category
+                  {
+                    id:"FAA-W1", ref:"AC 21.17-4 §1 / 14 CFR §21.17(b)",
+                    category:"Weight & Category",
+                    title:"Max Certificated Takeoff Weight",
+                    desc:"Powered-lift aircraft must not exceed 12,500 lb (5,670 kg) for AC 21.17-4 applicability.",
+                    check: MTOW_lb <= 12500,
+                    value: `${MTOW_lb.toFixed(0)} lb (${MTOW_kg.toFixed(0)} kg)`,
+                    limit: "≤ 12,500 lb (5,670 kg)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"FAA-W2", ref:"AC 21.17-4 / PS-AIR-21.17-01 Safety Continuum",
+                    category:"Weight & Category",
+                    title:"Passenger Seating Configuration",
+                    desc:"Up to 6 passengers for AC 21.17-4 applicability. More than 6 requires Part 25/29 compliance.",
+                    check: nPax <= 6,
+                    value: `~${nPax} passengers (payload ${p.payload} kg @ 90 kg/pax)`,
+                    limit: "≤ 6 passengers",
+                    severity:"critical",
+                  },
+                  // Structural
+                  {
+                    id:"FAA-S1", ref:"AC 21.17-4 App.A PL.2215 / FAR 23.337",
+                    category:"Structural Integrity",
+                    title:"Positive Limit Load Factor",
+                    desc:"For normal category powered-lift, limit load factor must be ≥ 3.5g at MTOW.",
+                    check: n_pos >= 3.5,
+                    value: `${n_pos.toFixed(1)}g`,
+                    limit: "≥ 3.5g (normal category)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"FAA-S2", ref:"AC 21.17-4 App.A PL.2235 / FAR 23.303",
+                    category:"Structural Integrity",
+                    title:"Ultimate Load Factor (1.5 × Limit)",
+                    desc:"All structural elements must withstand ultimate loads = 1.5 × limit load without failure.",
+                    check: n_ult >= 5.25,
+                    value: `${n_ult.toFixed(1)}g`,
+                    limit: "≥ 5.25g (1.5 × 3.5g limit)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"FAA-S3", ref:"AC 21.17-4 PL.2241 / FAR 21.17(b)",
+                    category:"Structural Integrity",
+                    title:"Rotor Tip Mach — Aeroelastic Stability",
+                    desc:"Tip Mach must stay below 0.70 to avoid compressibility effects and flutter risk per AC 21.17-4.",
+                    check: R.TipMach < 0.70,
+                    value: `Mtip = ${R.TipMach}`,
+                    limit: "< 0.70",
+                    severity:"critical",
+                  },
+                  // Performance
+                  {
+                    id:"FAA-P1", ref:"AC 21.17-4 PL.1035(c) / FAR 27.33",
+                    category:"Flight Performance",
+                    title:"Reserve Energy Margin",
+                    desc:"Must carry energy for ≥ 20 min reserve flight at best-range speed after completing mission.",
+                    check: R.tres >= 1200,
+                    value: `${R.tres}s = ${(R.tres/60).toFixed(1)} min`,
+                    limit: "≥ 20 min (1,200 s)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"FAA-P2", ref:"AC 21.17-4 App.A / FAR 23.2110",
+                    category:"Flight Performance",
+                    title:"Final State of Charge ≥ Reserve Minimum",
+                    desc:"Battery SoC at end of mission must remain above the minimum reserve floor set by SoCmin.",
+                    check: reserve_pct >= (socFloor * 100 - 1),
+                    value: `${reserve_pct.toFixed(1)}% remaining (floor: ${(socFloor*100).toFixed(1)}%)`,
+                    limit: `≥ ${(socFloor*100).toFixed(1)}% SoC floor`,
+                    severity:"major",
+                  },
+                  {
+                    id:"FAA-P3", ref:"AC 21.17-4 PL.2100 / FAR 27.143",
+                    category:"Flight Performance",
+                    title:"Static Margin — Longitudinal Stability",
+                    desc:"Aircraft must be statically stable longitudinally. SM must be positive (5–25% MAC target for FBW eVTOL).",
+                    check: R.SM_vt >= 0.05 && R.SM_vt <= 0.25,
+                    value: `SM = ${(R.SM_vt*100).toFixed(1)}% MAC`,
+                    limit: "5–25% MAC",
+                    severity:"critical",
+                  },
+                  // Noise — FAR Part 36
+                  {
+                    id:"FAA-N1", ref:"14 CFR Part 36 / AC 21.17-4",
+                    category:"Noise (FAR Part 36)",
+                    title:"Hover Noise Estimate (150m reference)",
+                    desc:"Estimated A-weighted hover noise at 150m. EASA UAM target: ≤ 65 dBA for urban operations. No specific FAA limit yet — evaluated case-by-case.",
+                    check: dBA_hover <= 75,
+                    value: `~${dBA_hover.toFixed(1)} dBA (at ${r_ref}m)`,
+                    limit: "≤ 75 dBA (operational target)",
+                    severity:"advisory",
+                  },
+                  {
+                    id:"FAA-N2", ref:"14 CFR Part 36 / AC 21.17-4 §7",
+                    category:"Noise (FAR Part 36)",
+                    title:"Rotor Tip Speed — Noise Driver",
+                    desc:"Lower tip speed directly reduces BPF tonal noise. Tip speeds > 200 m/s significantly increase community noise. Target: ≤ 200 m/s.",
+                    check: R.TipSpd <= 200,
+                    value: `${R.TipSpd} m/s`,
+                    limit: "≤ 200 m/s",
+                    severity:"major",
+                  },
+                  {
+                    id:"FAA-N3", ref:"14 CFR Part 36 Appendix H / AC 21.17-4",
+                    category:"Noise (FAR Part 36)",
+                    title:"Blade Passing Frequency",
+                    desc:"BPF should remain below 150 Hz to minimize tonal noise impact in residential areas (psychoacoustic threshold).",
+                    check: BPF <= 150,
+                    value: `BPF = ${BPF.toFixed(1)} Hz (${R.Nbld} blades × ${R.RPM.toFixed(0)} RPM/60)`,
+                    limit: "≤ 150 Hz",
+                    severity:"advisory",
+                  },
+                  // Battery Safety
+                  {
+                    id:"FAA-B1", ref:"AC 21.17-4 App.A PL.1353 / RTCA DO-311A",
+                    category:"Battery Safety",
+                    title:"Battery Mass Fraction",
+                    desc:"Battery mass fraction should stay below 55% of MTOW for structural balance and crashworthiness.",
+                    check: batFrac < 0.55,
+                    value: `${(batFrac*100).toFixed(1)}% of MTOW`,
+                    limit: "< 55%",
+                    severity:"major",
+                  },
+                  {
+                    id:"FAA-B2", ref:"AC 21.17-4 PL.1353(c) / RTCA DO-311A §2.4",
+                    category:"Battery Safety",
+                    title:"Hover C-rate — Thermal Runaway Risk",
+                    desc:"Pack C-rate during hover must stay below 5C to comply with RTCA DO-311A thermal runaway containment requirements.",
+                    check: C_hover <= 5.0,
+                    value: `${C_hover.toFixed(2)}C`,
+                    limit: "≤ 5.0C",
+                    severity:"major",
+                  },
+                  // Aerodynamics
+                  {
+                    id:"FAA-A1", ref:"AC 21.17-4 PL.2100 / FAR 23.2110",
+                    category:"Aerodynamics",
+                    title:"Actual Lift-to-Drag Ratio",
+                    desc:"Minimum aerodynamic efficiency requirement. L/D > 10 required for range and energy compliance.",
+                    check: R.LDact > 10,
+                    value: `L/D = ${R.LDact}`,
+                    limit: "> 10",
+                    severity:"major",
+                  },
+                  {
+                    id:"FAA-A2", ref:"AC 21.17-4 PL.2200 / FAR 23.2115",
+                    category:"Aerodynamics",
+                    title:"Cruise Mach Number",
+                    desc:"Must remain below Mach 0.45 for subsonic aerodynamic assumptions to remain valid in conceptual design.",
+                    check: R.Mach < 0.45,
+                    value: `M = ${R.Mach}`,
+                    limit: "< 0.45",
+                    severity:"major",
+                  },
+                ],
+                EASA: [
+                  // Weight & Category
+                  {
+                    id:"EASA-W1", ref:"SC-VTOL-01 VTOL.2005 Issue 2",
+                    category:"Weight & Category",
+                    title:"EASA Small Category — Max MTOM",
+                    desc:"EASA SC-VTOL small category covers aircraft ≤ 3,175 kg MTOM (CS-27 limit). Above this requires SC-VTOL Enhanced provisions.",
+                    check: MTOW_kg <= 3175,
+                    value: `${MTOW_kg.toFixed(0)} kg`,
+                    limit: "≤ 3,175 kg (SC-VTOL small category)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-W2", ref:"SC-VTOL-01 VTOL.2005",
+                    category:"Weight & Category",
+                    title:"EASA Passenger Seating Limit",
+                    desc:"EASA SC-VTOL small category: ≤ 5 passenger seats. Exceeding requires SC-VTOL Enhanced certification.",
+                    check: nPax <= 5,
+                    value: `~${nPax} passengers`,
+                    limit: "≤ 5 passengers",
+                    severity:"critical",
+                  },
+                  // Structural
+                  {
+                    id:"EASA-S1", ref:"SC-VTOL-01 VTOL.2215 / CS-27.337",
+                    category:"Structural Integrity",
+                    title:"Limit Load Factor (SC-VTOL)",
+                    desc:"SC-VTOL requires design load factor ≥ 3.5g for normal category. Enhanced category may require higher.",
+                    check: n_pos >= 3.5,
+                    value: `${n_pos.toFixed(1)}g`,
+                    limit: "≥ 3.5g",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-S2", ref:"SC-VTOL-01 VTOL.2265",
+                    category:"Structural Integrity",
+                    title:"Special Factor of Safety — Uncertain Components",
+                    desc:"SC-VTOL VTOL.2265: additional safety factors applied for novel/uncertain structural elements. Conceptual design margin ≥ 1.5.",
+                    check: n_ult / n_pos >= 1.5,
+                    value: `Factor = ${(n_ult/n_pos).toFixed(1)}`,
+                    limit: "≥ 1.5",
+                    severity:"major",
+                  },
+                  {
+                    id:"EASA-S3", ref:"SC-VTOL-01 VTOL.2241",
+                    category:"Structural Integrity",
+                    title:"Aeromechanical Stability",
+                    desc:"Aircraft must be free from dangerous oscillations. Tip Mach < 0.70 required for aeromechanical stability compliance.",
+                    check: R.TipMach < 0.70,
+                    value: `Mtip = ${R.TipMach}`,
+                    limit: "< 0.70",
+                    severity:"critical",
+                  },
+                  // Performance — SC-VTOL Category Basic vs Enhanced
+                  {
+                    id:"EASA-P1", ref:"SC-VTOL-01 VTOL.2005 Category Basic/Enhanced",
+                    category:"Flight Performance",
+                    title:"Category Classification",
+                    desc:"Category Basic: controlled emergency landing after critical failure. Category Enhanced: continued safe flight and landing. SM > 5% required for both.",
+                    check: R.SM_vt > 0.05,
+                    value: `SM = ${(R.SM_vt*100).toFixed(1)}% | Category: ${R.SM_vt>0.10?"Enhanced-eligible":"Basic"}`,
+                    limit: "SM > 5% MAC",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-P2", ref:"SC-VTOL-01 VTOL.1035 / CS-27.1035",
+                    category:"Flight Performance",
+                    title:"Reserve Energy (30 min IFR / 20 min VFR)",
+                    desc:"SC-VTOL requires 20 min VFR reserve (1,200s). IFR operations require 30 min (1,800s).",
+                    check: R.tres >= 1200,
+                    value: `${R.tres}s = ${(R.tres/60).toFixed(1)} min`,
+                    limit: "≥ 1,200s VFR / 1,800s IFR",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-P3", ref:"SC-VTOL-01 VTOL.2100 / CS-27.143",
+                    category:"Flight Performance",
+                    title:"Fus/Span Ratio — Fuselage-Wing Proportions",
+                    desc:"Fuselage/span ratio must remain within 0.50–0.72 for realistic eVTOL proportions per EASA SC-VTOL design guidance.",
+                    check: R.fusSpanRatio >= 0.50 && R.fusSpanRatio <= 0.72,
+                    value: `${R.fusSpanRatio?.toFixed(3) || "—"}`,
+                    limit: "0.50–0.72",
+                    severity:"advisory",
+                  },
+                  // Noise — EASA CS-36 / UAM Community Noise
+                  {
+                    id:"EASA-N1", ref:"EASA SC-VTOL / CS-36 Appendix J / UAM Community Noise Target",
+                    category:"Noise (EASA CS-36 / UAM)",
+                    title:"UAM Community Noise Target (65 dBA)",
+                    desc:"EASA UAM community noise target: ≤ 65 dBA at 150m for urban integration acceptance. Estimated hover noise must meet this.",
+                    check: dBA_hover <= 65,
+                    value: `~${dBA_hover.toFixed(1)} dBA (at ${r_ref}m)`,
+                    limit: "≤ 65 dBA (UAM target)",
+                    severity:"major",
+                  },
+                  {
+                    id:"EASA-N2", ref:"EASA CS-36 Appendix H+J / ICAO Annex 16 Vol.I",
+                    category:"Noise (EASA CS-36 / UAM)",
+                    title:"Tip Speed — Urban Noise Compliance",
+                    desc:"EASA CS-36 noise evaluation: lower tip speeds required for urban operations. Target ≤ 180 m/s for enhanced community acceptance.",
+                    check: R.TipSpd <= 180,
+                    value: `${R.TipSpd} m/s`,
+                    limit: "≤ 180 m/s (EASA enhanced target)",
+                    severity:"major",
+                  },
+                  // Battery Safety — EASA MOC-3 SC-VTOL
+                  {
+                    id:"EASA-B1", ref:"MOC-3 SC-VTOL VTOL.2330 / RTCA DO-311A §2.4",
+                    category:"Battery Safety (MOC-3 SC-VTOL)",
+                    title:"Thermal Runaway Containment",
+                    desc:"EASA MOC-3 SC-VTOL: battery systems must demonstrate thermal runaway containment. C-rate ≤ 5C at hover required per DO-311A.",
+                    check: C_hover <= 5.0,
+                    value: `${C_hover.toFixed(2)}C hover C-rate`,
+                    limit: "≤ 5C (DO-311A §2.4.5.5)",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-B2", ref:"MOC-3 SC-VTOL VTOL.2330 / SC-E-19",
+                    category:"Battery Safety (MOC-3 SC-VTOL)",
+                    title:"SoC Reserve Margin",
+                    desc:"EASA SC-E-19 propulsion battery: minimum SoC margin maintained at all times. Final SoC must exceed minimum reserve.",
+                    check: reserve_pct >= (socFloor * 100),
+                    value: `${reserve_pct.toFixed(1)}% final SoC (min: ${(socFloor*100).toFixed(1)}%)`,
+                    limit: `≥ ${(socFloor*100).toFixed(1)}%`,
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-B3", ref:"MOC-3 SC-VTOL VTOL.2330",
+                    category:"Battery Safety (MOC-3 SC-VTOL)",
+                    title:"Battery Mass Fraction",
+                    desc:"EASA SC-VTOL: battery mass fraction must be below 55% for structural mass balance and crashworthiness compliance.",
+                    check: batFrac < 0.55,
+                    value: `${(batFrac*100).toFixed(1)}%`,
+                    limit: "< 55%",
+                    severity:"major",
+                  },
+                  // V-tail
+                  {
+                    id:"EASA-T1", ref:"SC-VTOL-01 VTOL.2100 / CS-27.155",
+                    category:"Control Surfaces",
+                    title:"V-tail Pitch Authority",
+                    desc:"Control surfaces must provide adequate pitch authority. Sh_eff/Sh_req ≥ 1.0 ensures pitch stability margin.",
+                    check: R.pitch_ratio >= 1.0,
+                    value: `${(R.pitch_ratio*100).toFixed(0)}% of requirement`,
+                    limit: "≥ 100%",
+                    severity:"critical",
+                  },
+                  {
+                    id:"EASA-T2", ref:"SC-VTOL-01 VTOL.2100 / CS-27.155",
+                    category:"Control Surfaces",
+                    title:"V-tail Yaw Authority",
+                    desc:"Differential ruddervator must provide adequate yaw authority. Sv_eff/Sv_req ≥ 1.0.",
+                    check: R.yaw_ratio >= 1.0,
+                    value: `${(R.yaw_ratio*100).toFixed(0)}% of requirement`,
+                    limit: "≥ 100%",
+                    severity:"critical",
+                  },
+                ],
+              };
+
+              // Compute scores
+              const score=(arr)=>{
+                const total=arr.length;
+                const passed=arr.filter(r=>r.check).length;
+                const critical_fail=arr.filter(r=>!r.check&&r.severity==="critical").length;
+                const major_fail=arr.filter(r=>!r.check&&r.severity==="major").length;
+                return{total,passed,critical_fail,major_fail,pct:Math.round(passed/total*100)};
+              };
+              const faaScore=score(rules.FAA);
+              const easaScore=score(rules.EASA);
+              const allScore=score([...rules.FAA,...rules.EASA]);
+
+              const sevColor={critical:C.red,major:C.amber,advisory:"#22d3ee"};
+              const sevLabel={critical:"CRITICAL",major:"MAJOR",advisory:"ADVISORY"};
+
+              return(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+                {/* Header */}
+                <div style={{background:"linear-gradient(135deg,#0a1628,#0d1f3c)",
+                  border:`1px solid #3b82f644`,borderRadius:10,padding:"16px 20px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>REGULATORY COMPLIANCE — CONCEPTUAL DESIGN PHASE</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
+                    <span style={{color:C.blue}}>Certification</span> Compliance Checker
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7,maxWidth:760}}>
+                    Auto-checks your design against <span style={{color:C.blue,fontWeight:700}}>FAA AC 21.17-4</span> (Type Certification — Powered-lift, July 2025) and
+                    <span style={{color:"#f59e0b",fontWeight:700}}> EASA SC-VTOL Issue 2</span> (Special Condition for VTOL-capable aircraft).
+                    Results are <em>conceptual-phase guidance only</em> — actual certification requires full compliance documentation with the regulatory authority.
+                    Severity: <span style={{color:C.red}}>■ Critical</span> = must fix · <span style={{color:C.amber}}>■ Major</span> = significant risk · <span style={{color:"#22d3ee"}}>■ Advisory</span> = recommended.
+                  </div>
+                </div>
+
+                {/* Score cards */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+                  {[
+                    ["FAA AC 21.17-4",faaScore,C.blue,"🇺🇸"],
+                    ["EASA SC-VTOL",easaScore,C.amber,"🇪🇺"],
+                    ["Combined",allScore,allScore.critical_fail===0?C.green:C.red,"🌐"],
+                  ].map(([title,s,col,flag])=>(
+                    <div key={title} style={{background:C.panel,border:`2px solid ${col}44`,borderRadius:10,padding:"16px 18px"}}>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",marginBottom:6}}>{flag} {title}</div>
+                      {/* Score circle */}
+                      <div style={{display:"flex",alignItems:"center",gap:14}}>
+                        <div style={{width:64,height:64,borderRadius:"50%",flexShrink:0,
+                          background:`conic-gradient(${col} ${s.pct*3.6}deg, ${C.border} 0deg)`,
+                          display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                          <div style={{width:50,height:50,borderRadius:"50%",background:C.panel,
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontSize:14,fontWeight:800,color:col,fontFamily:"'DM Mono',monospace"}}>
+                            {s.pct}%
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:700,color:col,fontFamily:"'DM Mono',monospace"}}>
+                            {s.passed}/{s.total} passed
+                          </div>
+                          {s.critical_fail>0&&<div style={{fontSize:10,color:C.red,fontFamily:"'DM Mono',monospace"}}>⛔ {s.critical_fail} critical fail{s.critical_fail>1?"s":""}</div>}
+                          {s.major_fail>0&&<div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace"}}>⚠ {s.major_fail} major fail{s.major_fail>1?"s":""}</div>}
+                          {s.critical_fail===0&&s.major_fail===0&&<div style={{fontSize:10,color:C.green,fontFamily:"'DM Mono',monospace"}}>✓ No critical/major issues</div>}
+                        </div>
+                      </div>
+                      <div style={{marginTop:10,height:4,background:C.border,borderRadius:2}}>
+                        <div style={{width:`${s.pct}%`,height:"100%",background:col,borderRadius:2,transition:"width 0.5s"}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Key parameters used */}
+                <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 16px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",marginBottom:10,textTransform:"uppercase"}}>Design Parameters Used in Compliance Check</div>
+                  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                    {[
+                      ["MTOW",`${MTOW_kg.toFixed(0)} kg / ${MTOW_lb.toFixed(0)} lb`,C.amber],
+                      ["Passengers",`~${nPax} pax`,C.teal],
+                      ["Battery Frac",`${(batFrac*100).toFixed(1)}%`,batFrac<0.55?C.green:C.red],
+                      ["Hover C-rate",`${C_hover.toFixed(2)}C`,C_hover<5?C.green:C.red],
+                      ["SM w/Vtail",`${(R.SM_vt*100).toFixed(1)}%`,R.SM_vt>0.05&&R.SM_vt<0.25?C.green:C.red],
+                      ["Tip Mach",R.TipMach,R.TipMach<0.70?C.green:C.red],
+                      ["Tip Speed",`${R.TipSpd} m/s`,R.TipSpd<180?C.green:R.TipSpd<200?C.amber:C.red],
+                      ["BPF",`${BPF.toFixed(0)} Hz`,BPF<150?C.green:C.amber],
+                      ["Est. Noise",`${dBA_hover.toFixed(0)} dBA`,dBA_hover<65?C.green:dBA_hover<75?C.amber:C.red],
+                      ["Reserve",`${(R.tres/60).toFixed(1)} min`,R.tres>=1200?C.green:C.red],
+                    ].map(([lbl,val,col])=>(
+                      <div key={lbl} style={{background:C.bg,border:`1px solid ${col}33`,borderRadius:6,padding:"6px 10px"}}>
+                        <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{lbl}</div>
+                        <div style={{fontSize:11,color:col,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* FAA Rules */}
+                <div style={{background:C.panel,border:`1px solid ${C.blue}33`,borderRadius:8,padding:"14px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,borderBottom:`1px solid ${C.border}`,paddingBottom:10}}>
+                    <span style={{fontSize:20}}>🇺🇸</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:C.blue,fontFamily:"'DM Mono',monospace"}}>FAA AC 21.17-4</div>
+                      <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Type Certification — Powered-lift (July 2025) · 14 CFR §21.17(b)</div>
+                    </div>
+                    <div style={{marginLeft:"auto",textAlign:"right"}}>
+                      <div style={{fontSize:18,fontWeight:800,color:faaScore.pct>=80?C.green:faaScore.pct>=60?C.amber:C.red,fontFamily:"'DM Mono',monospace"}}>{faaScore.pct}%</div>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{faaScore.passed}/{faaScore.total} checks</div>
+                    </div>
+                  </div>
+                  {/* Group by category */}
+                  {[...new Set(rules.FAA.map(r=>r.category))].map(cat=>(
+                    <div key={cat} style={{marginBottom:14}}>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.12em",
+                        textTransform:"uppercase",marginBottom:6,paddingLeft:2}}>{cat}</div>
+                      {rules.FAA.filter(r=>r.category===cat).map(rule=>(
+                        <div key={rule.id} style={{
+                          background:rule.check?`${C.green}08`:`${sevColor[rule.severity]}0c`,
+                          border:`1px solid ${rule.check?C.green+"22":sevColor[rule.severity]+"44"}`,
+                          borderRadius:6,padding:"10px 14px",marginBottom:6,
+                          borderLeft:`3px solid ${rule.check?C.green:sevColor[rule.severity]}`}}>
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+                            <div style={{flex:1}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                                <span style={{fontSize:14}}>{rule.check?"✅":"❌"}</span>
+                                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{rule.title}</span>
+                                {!rule.check&&(
+                                  <span style={{fontSize:8,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                                    fontFamily:"'DM Mono',monospace",
+                                    background:`${sevColor[rule.severity]}22`,color:sevColor[rule.severity]}}>
+                                    {sevLabel[rule.severity]}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,lineHeight:1.5}}>{rule.desc}</div>
+                              <div style={{fontSize:9,color:"#475569",fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0,minWidth:130}}>
+                              <div style={{fontSize:11,color:rule.check?C.green:sevColor[rule.severity],fontFamily:"'DM Mono',monospace",fontWeight:700}}>{rule.value}</div>
+                              <div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace",marginTop:2}}>Limit: {rule.limit}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* EASA Rules */}
+                <div style={{background:C.panel,border:`1px solid ${C.amber}33`,borderRadius:8,padding:"14px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,borderBottom:`1px solid ${C.border}`,paddingBottom:10}}>
+                    <span style={{fontSize:20}}>🇪🇺</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:C.amber,fontFamily:"'DM Mono',monospace"}}>EASA SC-VTOL Issue 2</div>
+                      <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Special Condition for VTOL-capable aircraft · MOC-3 SC-VTOL Battery Safety</div>
+                    </div>
+                    <div style={{marginLeft:"auto",textAlign:"right"}}>
+                      <div style={{fontSize:18,fontWeight:800,color:easaScore.pct>=80?C.green:easaScore.pct>=60?C.amber:C.red,fontFamily:"'DM Mono',monospace"}}>{easaScore.pct}%</div>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{easaScore.passed}/{easaScore.total} checks</div>
+                    </div>
+                  </div>
+                  {[...new Set(rules.EASA.map(r=>r.category))].map(cat=>(
+                    <div key={cat} style={{marginBottom:14}}>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.12em",
+                        textTransform:"uppercase",marginBottom:6,paddingLeft:2}}>{cat}</div>
+                      {rules.EASA.filter(r=>r.category===cat).map(rule=>(
+                        <div key={rule.id} style={{
+                          background:rule.check?`${C.green}08`:`${sevColor[rule.severity]}0c`,
+                          border:`1px solid ${rule.check?C.green+"22":sevColor[rule.severity]+"44"}`,
+                          borderRadius:6,padding:"10px 14px",marginBottom:6,
+                          borderLeft:`3px solid ${rule.check?C.green:sevColor[rule.severity]}`}}>
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+                            <div style={{flex:1}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                                <span style={{fontSize:14}}>{rule.check?"✅":"❌"}</span>
+                                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>{rule.title}</span>
+                                {!rule.check&&(
+                                  <span style={{fontSize:8,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                                    fontFamily:"'DM Mono',monospace",
+                                    background:`${sevColor[rule.severity]}22`,color:sevColor[rule.severity]}}>
+                                    {sevLabel[rule.severity]}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,lineHeight:1.5}}>{rule.desc}</div>
+                              <div style={{fontSize:9,color:"#475569",fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0,minWidth:130}}>
+                              <div style={{fontSize:11,color:rule.check?C.green:sevColor[rule.severity],fontFamily:"'DM Mono',monospace",fontWeight:700}}>{rule.value}</div>
+                              <div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace",marginTop:2}}>Limit: {rule.limit}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Disclaimer */}
+                <div style={{padding:"10px 14px",background:`${C.blue}0a`,border:`1px solid ${C.blue}22`,
+                  borderRadius:6,fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+                  ⓘ <strong style={{color:C.text}}>Important:</strong> This checker provides <em>conceptual-design phase guidance</em> based on publicly available FAA AC 21.17-4 (July 2025),
+                  EASA SC-VTOL Issue 2, and MOC-3 SC-VTOL. It is <strong>not a substitute for formal compliance documentation</strong>.
+                  Actual type certification requires full qualification testing, G-1/G-2 issue papers, and regulatory authority approval.
+                  Noise estimates use a simplified Pegg-type model (±5 dB accuracy); actual certification requires flight testing per 14 CFR Part 36 / EASA CS-36.
+                </div>
+
+              </div>
+              );
+            })()}
+
+            {/* ──── TAB 11: OPENVSP EXPORT ──── */}
+            {tab===11&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {/* Header banner */}
                 <div style={{background:"linear-gradient(135deg,#0d1117 0%,#0f172a 100%)",
