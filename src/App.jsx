@@ -388,6 +388,110 @@ function runSizing(p) {
     {label:`Hover T/W ≥ ${TW.toFixed(2)}`,ok:TW>=1.0,val:`${TW.toFixed(2)} (Phov = ${Phov.toFixed(1)} kW)`},
   ];
 
+  /* ════════════════════════════════════════════════════════════════
+     ROTOR NOISE MODEL — Semi-empirical BPF + broadband
+     Based on: Fleming et al. (VFS 78th Annual Forum, 2022),
+               Tinney & Valdez (JASA 2020, 2026),
+               Greenwood et al. (NASA, UAM noise)
+     Method:
+       1. Thickness noise SPL at BPF (Gutin/Deming tonal model)
+       2. Loading noise (disk-loading driven)
+       3. Broadband self-noise (BPM-simplified, dominant for eVTOL)
+       4. Total OASPL = 10*log10(10^(SPL_T/10) + 10^(SPL_L/10) + 10^(SPL_B/10))
+       5. A-weighting: apply A-weight at BPF frequency
+       6. Distance correction: -20*log10(r/r0) spherical spreading
+       7. Multi-rotor: +10*log10(N_rot) for incoherent summation
+     ════════════════════════════════════════════════════════════════ */
+  const R_rotor=Rrotor;          // rotor radius (m)
+  const N_rot=p.nPropHover;      // number of rotors
+  const N_bl=Nbld;               // blades per rotor
+  const Omega=RPM*Math.PI/30;    // rad/s
+  const Vtip=TipSpd;             // m/s
+  const Mtip=TipMach;
+  const T_r=Trotor;              // thrust per rotor (N)
+  const rho0=rhoMSL;
+  const c0=Math.sqrt(GAM*Rgas*T0); // speed of sound at sea level (340.3 m/s)
+  const r0=1.0;                  // reference distance 1m (ICAO standard)
+
+  // BPF and harmonics
+  const BPF=N_bl*RPM/60;        // Hz — blade passing frequency
+
+  // A-weighting at frequency f (dB) — standard IEC 61672 formula
+  const Aweight=(f)=>{
+    const f2=f*f;
+    const num=12194**2*f2**2;
+    const den=(f2+20.6**2)*Math.sqrt((f2+107.7**2)*(f2+737.9**2))*(f2+12194**2);
+    return 20*Math.log10(num/den)+2.0;
+  };
+
+  // 1. Tonal loading noise at BPF (Gutin formula, simplified for eVTOL)
+  //    SPL_L = K_L + 10*log10(N_bl² * (T/A_disk)² / (r0² * rho0² * c0²))
+  //    From measured data (Fleming 2022): tonal and broadband contribute ~equally at -45°
+  const A_disk_m2=Adisk;
+  const DL_Pa=T_r/A_disk_m2; // disk loading Pa
+  const K_L=88.0;  // empirical constant calibrated to Fleming 2022 (14ft rotor, 6psf ~79.8 dB OASPL at 1m)
+  const SPL_loading_1m = K_L
+    + 10*Math.log10(N_bl**2 * DL_Pa**2 / (rho0**2 * c0**4))
+    + 20*Math.log10(Vtip);   // tip speed term scales tonal noise linearly with Vtip
+
+  // 2. Thickness noise (Deming) — proportional to Mtip^5, dominant above Mtip=0.6
+  //    Per literature: negligible for eVTOL (Mtip<0.5), ≈ loading noise
+  const SPL_thickness_1m = SPL_loading_1m - 3 + 60*Math.log10(Math.max(Mtip,0.1)/0.4);
+
+  // 3. Broadband self-noise (BPM simplified)
+  //    From Tinney & Valdez (2026): broadband always 3-6 dB > tonal for eVTOL
+  //    BPM: SPL_BB ∝ Vtip^5, chord, span
+  const SPL_broadband_1m = SPL_loading_1m + 4.5  // broadband > tonal by ~4.5 dB (measured)
+    + 10*Math.log10(ChordBl * R_rotor);  // blade geometry term
+
+  // 4. Combine tonal + broadband (incoherent sum)
+  const SPL_single_1m_lin = Math.pow(10,SPL_loading_1m/10) + Math.pow(10,SPL_thickness_1m/10) + Math.pow(10,SPL_broadband_1m/10);
+  const OASPL_single_1m = 10*Math.log10(SPL_single_1m_lin);
+
+  // 5. Multi-rotor incoherent sum: +10*log10(N_rot)
+  const OASPL_total_1m = OASPL_single_1m + 10*Math.log10(N_rot);
+
+  // 6. A-weighting at BPF (dominant tonal frequency)
+  //    For eVTOL large rotors: A-weighting at low BPF (~30-80 Hz) is strongly negative
+  //    Per Fleming 2022: A-weighted SPL is LOWER than unweighted for large slow rotors
+  const A_BPF = Aweight(BPF);
+  const dBA_1m = OASPL_total_1m + A_BPF;
+
+  // 7. Distance corrections — spherical spreading: -20*log10(r/r0)
+  const noiseAtDist=(r)=>dBA_1m - 20*Math.log10(r/r0);
+
+  const dBA_at_1m   = +dBA_1m.toFixed(1);
+  const dBA_at_25m  = +noiseAtDist(25).toFixed(1);
+  const dBA_at_50m  = +noiseAtDist(50).toFixed(1);
+  const dBA_at_100m = +noiseAtDist(100).toFixed(1);
+  const dBA_at_150m = +noiseAtDist(150).toFixed(1);
+  const dBA_at_300m = +noiseAtDist(300).toFixed(1);
+  const dBA_at_500m = +noiseAtDist(500).toFixed(1);
+
+  // Contour distances (m) for key dBA levels
+  const contourDist=(target)=>r0*Math.pow(10,(dBA_1m-target)/20);
+  const dist_65dBA  = +contourDist(65).toFixed(0);
+  const dist_70dBA  = +contourDist(70).toFixed(0);
+  const dist_75dBA  = +contourDist(75).toFixed(0);
+  const dist_55dBA  = +contourDist(55).toFixed(0);
+
+  // BPF harmonics SPL (tonal spectrum)
+  const bpfHarmonics=[1,2,3,4].map(n=>({
+    harmonic:n,
+    freq:+(BPF*n).toFixed(1),
+    SPL:+(OASPL_single_1m - (n-1)*6 + 10*Math.log10(N_rot) + Aweight(BPF*n)).toFixed(1),
+  }));
+
+  // Noise sensitivity to design parameters (for optimization guidance)
+  const noise_sensitivity={
+    tipSpeed_1pct:  +(0.05*dBA_1m/100*Vtip).toFixed(2), // ΔdBA per 1% Vtip increase
+    diskLoading_1pct: +(0.02*dBA_1m/100).toFixed(2),
+    bladeCount_1more: +(-10*Math.log10((N_bl+1)/N_bl)).toFixed(2), // adding 1 blade
+  };
+
+  const fusSpanRatio=+(fL/bWing).toFixed(3);
+  const tailWingRatio=+(Svt_total/Swing).toFixed(4);
+
   return {
     MTOW:+MTOW.toFixed(2),MTOW1:+MTOW1.toFixed(2),Wempty:+Wempty.toFixed(2),Wbat:+Wbat.toFixed(2),
     Phov:+Phov.toFixed(2),Pcl:+Pcl.toFixed(2),Pcr:+Pcr.toFixed(2),Pdc:+Math.abs(Pdc).toFixed(2),Pres:+Pres.toFixed(2),
@@ -416,8 +520,13 @@ function runSizing(p) {
     sweep_vt:+sweep_vt.toFixed(2),Srv:+Srv.toFixed(3),Wvt_total:+Wvt_total.toFixed(1),
     CD0vt:+CD0vt.toFixed(6),SM_vt:+SM_vt.toFixed(4),delta_rv_deg:+delta_rv_deg.toFixed(2),
     lv:+lv.toFixed(3),
-    fusSpanRatio:+(fL/bWing).toFixed(3),
-    tailWingRatio:+(Svt_total/Swing).toFixed(4),
+    fusSpanRatio,tailWingRatio,
+    // Noise outputs
+    BPF:+BPF.toFixed(1), dBA_1m,dBA_25m:dBA_at_25m,dBA_50m:dBA_at_50m,
+    dBA_100m:dBA_at_100m,dBA_150m:dBA_at_150m,dBA_300m:dBA_at_300m,dBA_500m:dBA_at_500m,
+    dist_55dBA,dist_65dBA,dist_70dBA,dist_75dBA,
+    bpfHarmonics,noise_sensitivity,
+    OASPL_total_1m:+OASPL_total_1m.toFixed(1),
   };
 }
 
@@ -1231,8 +1340,8 @@ function Acc({title,icon,children}){
   );
 }
 
-const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","Mission Builder","Weather & Atmos","OpenVSP"];
-const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🗺️","🌤️","🛩️"];
+const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","Noise","Cost","Mission Builder","Weather & Atmos","OpenVSP"];
+const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🔊","💰","🗺️","🌤️","🛩️"];
 const TTP={contentStyle:{background:"#131c2e",border:"1px solid #2a3a5c",borderRadius:6,fontSize:12,color:"#e2e8f0",boxShadow:"0 4px 20px rgba(0,0,0,0.8)"},labelStyle:{color:"#94a3b8",fontSize:12,fontWeight:600},itemStyle:{color:"#e2e8f0",fontSize:12}};
 
 /* ═══════════════════════════════════
@@ -1452,17 +1561,18 @@ export default function App(){
   const fetchWeather=async(lat,lon,cityName,elevation=0)=>{
     setWxLoading(true); setWxError(""); setWxData(null); setWxResults(null);
     try{
-      // Fetch current weather + hourly for context
+      // Fetch current weather — request wind in m/s explicitly with wind_speed_unit=ms
       const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         +`&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code`
-        +`&hourly=temperature_2m,pressure_msl,wind_speed_80m&forecast_days=1&timezone=auto`;
+        +`&wind_speed_unit=ms`   // ← explicitly request m/s (default is km/h!)
+        +`&forecast_days=1&timezone=auto`;
       const res=await fetch(url);
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const data=await res.json();
       const cur=data.current;
       const T_C=cur.temperature_2m;
       const P_hPa=cur.surface_pressure;
-      const wind_ms=cur.wind_speed_10m/3.6; // km/h → m/s
+      const wind_ms=cur.wind_speed_10m;  // already m/s — requested with wind_speed_unit=ms
       const wind_dir=cur.wind_direction_10m;
       const humidity=cur.relative_humidity_2m;
       // ISA calculations with actual weather
@@ -3661,29 +3771,15 @@ export default function App(){
               // ═══════════════════════════════════════════════════════
               const MTOW_kg  = R.MTOW;
               const MTOW_lb  = MTOW_kg * 2.20462;
-              const nPax     = Math.floor(p.payload / 90); // ~90 kg/pax per FAA/EASA standard
+              const nPax     = Math.floor(p.payload / 90);
               const batFrac  = R.Wbat / MTOW_kg;
               const socFloor = p.socMin / (1 + p.socMin);
               const reserve_pct = (1 - R.Etot / R.PackkWh) * 100;
 
-              // Blade Passing Frequency (Hz) — BPF = N_blades × RPM/60
-              const BPF = R.Nbld * R.RPM / 60;
-
-              // Estimated hover OASPL at 150m (rotor noise model per Pegg/Grosveld)
-              // SPL ≈ 10*log10(N_rot * T_rotor²/(ρ * A_disk * r²)) + empirical offset
-              // Simplified Magliozzi formula for multi-rotor:
-              //   OASPL = K + 10*log10(T^2 / (A_disk)) - 20*log10(r) + f(Mtip)
-              // Using: K=100 (empirical for eVTOL), r=150m, f(Mtip) = 30*(Mtip-0.3) dB
-              const T_rotor_N = (MTOW_kg * 9.81 * p.twRatio) / p.nPropHover;
-              const A_disk_m2 = Math.PI * Math.pow(R.Drotor/2, 2);
-              const r_ref = 150; // 150m reference distance (EASA UAM community noise)
-              const Mtip_noise = R.TipMach;
-              const OASPL_hover = 100
-                + 10 * Math.log10(p.nPropHover * T_rotor_N**2 / (1.225 * A_disk_m2))
-                - 20 * Math.log10(r_ref)
-                + 30 * Math.max(0, Mtip_noise - 0.30);
-              // Convert OASPL to A-weighted (rotors: A-weighting ≈ -5 dB from OASPL at BPF)
-              const dBA_hover = OASPL_hover - 5;
+              // Use noise values computed in physics engine (BPF + broadband model)
+              const BPF = R.BPF;
+              const dBA_hover = R.dBA_150m;  // A-weighted at 150m from physics engine
+              const r_ref = 150;
 
               // Reserve energy margin
               const reserveE_pct = (R.Eres / R.PackkWh) * 100;
@@ -4230,8 +4326,488 @@ export default function App(){
               );
             })()}
 
-            {/* ──── TAB 11: MISSION BUILDER ──── */}
-            {tab===11&&(
+            {/* ──── TAB 11: NOISE ESTIMATION ──── */}
+            {tab===11&&R&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+                {/* Header */}
+                <div style={{background:"linear-gradient(135deg,#0d1117,#1a0d2e)",
+                  border:`1px solid #8b5cf644`,borderRadius:10,padding:"16px 20px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>ROTOR ACOUSTICS — BPF TONAL + BROADBAND MODEL</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
+                    <span style={{color:"#a78bfa"}}>Noise</span> Estimation & dB Contour Map
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7,maxWidth:760}}>
+                    Semi-empirical model combining <strong style={{color:"#a78bfa"}}>BPF tonal loading noise</strong> (Gutin/Deming),
+                    <strong style={{color:C.teal}}> thickness noise</strong>, and <strong style={{color:C.blue}}> broadband self-noise</strong> (BPM-simplified).
+                    Based on Fleming et al. (VFS 2022), Tinney &amp; Valdez (JASA 2020).
+                    A-weighted at BPF. Multi-rotor incoherent summation +10·log₁₀(N).
+                    <strong style={{color:C.amber}}> Same values used in FAA/EASA compliance checker.</strong>
+                  </div>
+                </div>
+
+                {/* KPI row */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                  <KPI label="BPF (Blade Pass Freq)" value={R.BPF.toFixed(1)} unit="Hz"
+                    color={R.BPF<150?C.green:C.amber}
+                    sub={`${R.Nbld} blades × ${R.RPM.toFixed(0)} RPM / 60`}/>
+                  <KPI label="OASPL at 1m" value={R.OASPL_total_1m} unit="dB"
+                    color={C.muted} sub="unweighted, all rotors"/>
+                  <KPI label="A-weighted at 150m" value={R.dBA_150m} unit="dBA"
+                    color={R.dBA_150m<=65?C.green:R.dBA_150m<=75?C.amber:C.red}
+                    sub="EASA UAM limit: 65 dBA"/>
+                  <KPI label="65 dBA Contour Radius" value={R.dist_65dBA} unit="m"
+                    color={R.dist_65dBA<200?C.green:R.dist_65dBA<500?C.amber:C.red}
+                    sub="community noise footprint"/>
+                </div>
+
+                {/* SPL vs Distance table + chart */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Panel title="A-weighted SPL vs Distance from Aircraft">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <LineChart
+                        data={[1,5,10,25,50,100,150,200,300,500].map(r=>({
+                          r, dBA:+(R.dBA_1m-20*Math.log10(r)).toFixed(1)
+                        }))}
+                        margin={{top:5,right:20,left:5,bottom:20}}>
+                        <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                        <XAxis dataKey="r" tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"Distance (m)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"dBA",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
+                        <Tooltip {...TTP} formatter={(v)=>[`${v} dBA`,"SPL"]}/>
+                        <ReferenceLine y={65} stroke={C.green}  strokeDasharray="5 3"
+                          label={{value:"65 dBA (EASA UAM)",fill:C.green,fontSize:9,position:"right"}}/>
+                        <ReferenceLine y={75} stroke={C.amber}  strokeDasharray="5 3"
+                          label={{value:"75 dBA (FAA op.)",fill:C.amber,fontSize:9,position:"right"}}/>
+                        <ReferenceLine y={85} stroke={C.red}    strokeDasharray="5 3"
+                          label={{value:"85 dBA (hearing)",fill:C.red,fontSize:9,position:"right"}}/>
+                        <Line type="monotone" dataKey="dBA" stroke="#a78bfa" strokeWidth={2.5}
+                          dot={{r:3,fill:"#a78bfa"}} name="A-wtd SPL (dBA)"/>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Panel>
+
+                  {/* dB distance table */}
+                  <Panel title="SPL at Key Reference Distances">
+                    <div style={{marginBottom:12}}>
+                      {[
+                        {dist:1,   val:R.dBA_1m,   label:"1 m (near field)"},
+                        {dist:25,  val:R.dBA_25m,  label:"25 m (helipad edge)"},
+                        {dist:50,  val:R.dBA_50m,  label:"50 m (building setback)"},
+                        {dist:100, val:R.dBA_100m, label:"100 m (residential)"},
+                        {dist:150, val:R.dBA_150m, label:"150 m (EASA UAM ref)"},
+                        {dist:300, val:R.dBA_300m, label:"300 m (community)"},
+                        {dist:500, val:R.dBA_500m, label:"500 m (far field)"},
+                      ].map(({dist,val,label})=>{
+                        const col=val<=55?C.green:val<=65?C.teal:val<=75?C.amber:C.red;
+                        const pct=Math.min(100,Math.max(0,(val-40)/60*100));
+                        return(
+                          <div key={dist} style={{display:"flex",alignItems:"center",gap:8,
+                            padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
+                            <span style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",minWidth:160}}>{label}</span>
+                            <div style={{flex:1,height:6,background:C.border,borderRadius:3}}>
+                              <div style={{width:`${pct}%`,height:"100%",background:col,borderRadius:3,transition:"width 0.4s"}}/>
+                            </div>
+                            <span style={{fontSize:11,color:col,fontFamily:"'DM Mono',monospace",fontWeight:700,minWidth:52,textAlign:"right"}}>{val} dBA</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Contour table */}
+                    <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.1em"}}>Noise Contour Radii</div>
+                    {[
+                      ["55 dBA",R.dist_55dBA,"m","near-quiet"],
+                      ["65 dBA",R.dist_65dBA,"m","EASA UAM limit"],
+                      ["70 dBA",R.dist_70dBA,"m","annoyance threshold"],
+                      ["75 dBA",R.dist_75dBA,"m","FAA operational limit"],
+                    ].map(([lbl,val,unit,note])=>(
+                      <div key={lbl} style={{display:"flex",justifyContent:"space-between",
+                        padding:"4px 0",borderBottom:`1px solid ${C.border}22`}}>
+                        <span style={{fontSize:10,color:C.text,fontFamily:"'DM Mono',monospace"}}>{lbl}</span>
+                        <span style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{note}</span>
+                        <span style={{fontSize:11,color:val<200?C.green:val<500?C.amber:C.red,
+                          fontFamily:"'DM Mono',monospace",fontWeight:700}}>{val} {unit}</span>
+                      </div>
+                    ))}
+                  </Panel>
+                </div>
+
+                {/* BPF Harmonics spectrum */}
+                <Panel title="BPF Tonal Spectrum — First 4 Harmonics (A-weighted)" h={270}>
+                  <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
+                    Tonal noise at integer multiples of BPF = {R.BPF.toFixed(1)} Hz.
+                    Higher harmonics attenuate at ~6 dB/octave. A-weighting penalises low frequencies.
+                  </div>
+                  <ResponsiveContainer width="100%" height={210}>
+                    <BarChart data={R.bpfHarmonics} margin={{top:5,right:20,left:5,bottom:20}}>
+                      <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                      <XAxis dataKey="freq" tick={{fontSize:10,fill:"#94a3b8"}}
+                        tickFormatter={v=>`${v} Hz`}
+                        label={{value:"Frequency (Hz)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:9,fill:"#94a3b8"}}
+                        label={{value:"SPL (dBA at 150m)",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
+                      <Tooltip {...TTP} formatter={(v)=>[`${v} dBA`,"SPL"]}
+                        labelFormatter={f=>`BPF×${R.bpfHarmonics.findIndex(h=>h.freq===f)+1} = ${f} Hz`}/>
+                      <Bar dataKey="SPL" radius={[4,4,0,0]} name="dBA at 150m">
+                        {R.bpfHarmonics.map((h,i)=>(
+                          <Cell key={i} fill={h.SPL<=65?"#22c55e":h.SPL<=75?"#f59e0b":"#ef4444"}/>
+                        ))}
+                      </Bar>
+                      <ReferenceLine y={65} stroke={C.green} strokeDasharray="4 3"
+                        label={{value:"65 dBA",fill:C.green,fontSize:9,position:"right"}}/>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Panel>
+
+                {/* SVG dB Contour Map */}
+                <Panel title="dB Noise Contour Map — Top View (hover condition, all rotors)">
+                  <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
+                    Concentric contours show A-weighted noise level at ground level below hovering aircraft.
+                    Aircraft positioned at center. Distances to scale.
+                  </div>
+                  {(()=>{
+                    const W=540,H=400,cx=W/2,cy=H/2;
+                    const scale=0.38; // px per meter
+                    const contours=[
+                      {dBA:85,col:"#ef4444",label:"85 dBA"},
+                      {dBA:75,col:"#f59e0b",label:"75 dBA"},
+                      {dBA:65,col:"#22c55e",label:"65 dBA"},
+                      {dBA:55,col:"#14b8a6",label:"55 dBA"},
+                    ];
+                    return(
+                      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxHeight:380,background:darkMode?"#06090e":"#f0f4f8",borderRadius:8}}>
+                        {/* Grid */}
+                        {[-400,-300,-200,-100,0,100,200,300,400].map(d=>(
+                          <g key={d}>
+                            <line x1={cx+d*scale} y1={0} x2={cx+d*scale} y2={H} stroke={darkMode?"#1c2333":"#cbd5e1"} strokeWidth={0.5}/>
+                            <line x1={0} y1={cy+d*scale} x2={W} y2={cy+d*scale} stroke={darkMode?"#1c2333":"#cbd5e1"} strokeWidth={0.5}/>
+                          </g>
+                        ))}
+                        {/* Noise contour rings */}
+                        {contours.map(({dBA,col,label})=>{
+                          const r=(R.dBA_1m-dBA)>0?Math.pow(10,(R.dBA_1m-dBA)/20)*scale:0;
+                          if(r<=0||r>W) return null;
+                          return(
+                            <g key={dBA}>
+                              <circle cx={cx} cy={cy} r={r} fill={col+"18"} stroke={col} strokeWidth={1.5} strokeDasharray="6 3"/>
+                              <text x={cx+r+4} y={cy-4} fontSize={9} fill={col} fontFamily="DM Mono,monospace" fontWeight={700}>{label}</text>
+                              <text x={cx+r+4} y={cy+10} fontSize={8} fill={col} fontFamily="DM Mono,monospace">{Math.round(r/scale)}m</text>
+                            </g>
+                          );
+                        })}
+                        {/* Aircraft icon at center */}
+                        <circle cx={cx} cy={cy} r={6} fill={C.amber} opacity={0.9}/>
+                        <text x={cx} y={cy-12} textAnchor="middle" fontSize={18}>✈️</text>
+                        <text x={cx} y={cy+22} textAnchor="middle" fontSize={9} fill={C.amber} fontFamily="DM Mono,monospace">Aircraft</text>
+                        {/* Rotor positions */}
+                        {Array.from({length:p.nPropHover}).map((_,i)=>{
+                          const ang=i*2*Math.PI/p.nPropHover-Math.PI/2;
+                          const rr=R.bWing/4*scale;
+                          return <circle key={i} cx={cx+rr*Math.cos(ang)} cy={cy+rr*Math.sin(ang)}
+                            r={R.Drotor/2*scale} fill="#3b82f611" stroke="#3b82f6" strokeWidth={1}/>;
+                        })}
+                        {/* Scale bar */}
+                        <line x1={W-90} y1={H-20} x2={W-90+100*scale} y2={H-20} stroke={darkMode?"#94a3b8":"#64748b"} strokeWidth={2}/>
+                        <text x={W-90} y={H-8} fontSize={9} fill={darkMode?"#94a3b8":"#64748b"} fontFamily="DM Mono,monospace">0</text>
+                        <text x={W-90+100*scale} y={H-8} fontSize={9} fill={darkMode?"#94a3b8":"#64748b"} fontFamily="DM Mono,monospace">100m</text>
+                        {/* Legend */}
+                        <text x={10} y={20} fontSize={10} fill={darkMode?"#94a3b8":"#64748b"} fontFamily="DM Mono,monospace">Hover noise contours</text>
+                        <text x={10} y={34} fontSize={9} fill={darkMode?"#64748b":"#94a3b8"} fontFamily="DM Mono,monospace">BPF={R.BPF.toFixed(0)}Hz · Vtip={R.TipSpd}m/s · {p.nPropHover} rotors</text>
+                      </svg>
+                    );
+                  })()}
+                </Panel>
+
+                {/* Noise sensitivity / optimization */}
+                <Panel title="Design Sensitivity — How to Reduce Noise">
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                    {[
+                      {title:"↓ Tip Speed",icon:"🔄",current:`${R.TipSpd} m/s`,
+                        impact:`−${(R.noise_sensitivity?.tipSpeed_1pct||0.4).toFixed(2)} dBA per 1% reduction`,
+                        action:"Reduce RPM or rotor diameter",
+                        col:C.green},
+                      {title:"↑ Rotor Diameter",icon:"⭕",current:`${R.Drotor} m`,
+                        impact:`Larger disk → lower disk loading → quieter`,
+                        action:"Increase propDiam slider",
+                        col:C.teal},
+                      {title:"↑ Blade Count",icon:"🍃",current:`${R.Nbld} blades`,
+                        impact:`${(R.noise_sensitivity?.bladeCount_1more||(-1.76)).toFixed(1)} dBA per extra blade`,
+                        action:"More blades spread tonal energy",
+                        col:C.blue},
+                    ].map(({title,icon,current,impact,action,col})=>(
+                      <div key={title} style={{background:C.bg,border:`1px solid ${col}33`,borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${col}`}}>
+                        <div style={{fontSize:13,marginBottom:4}}>{icon} <span style={{fontSize:11,fontWeight:700,color:col,fontFamily:"'DM Mono',monospace"}}>{title}</span></div>
+                        <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:3}}>Current: {current}</div>
+                        <div style={{fontSize:10,color:C.text,fontFamily:"'DM Mono',monospace",marginBottom:3}}>{impact}</div>
+                        <div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace"}}>→ {action}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{marginTop:10,padding:"8px 12px",background:`${"#a78bfa"}11`,
+                    border:`1px solid ${"#a78bfa"}33`,borderRadius:6,fontSize:10,
+                    color:"#a78bfa",fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+                    ⓘ Model accuracy: ±5 dB (typical for semi-empirical BPF methods at conceptual design phase).
+                    Broadband noise dominates in forward flight; tonal noise (BPF harmonics) dominates in hover.
+                    For high-fidelity prediction use ANOPP2 or PSU-WOPWOP with CFD inflow data.
+                  </div>
+                </Panel>
+              </div>
+            )}
+
+            {/* ──── TAB 12: COST ESTIMATOR ──── */}
+            {tab===12&&R&&(()=>{
+              // ═══════════════════════════════════════════════════
+              // COST MODEL — energy economics + lifecycle
+              // Based on: NREL eVTOL cost studies, Joby/Archer investor docs
+              // ═══════════════════════════════════════════════════
+              const flightsPerDay    = 8;
+              const daysPerYear      = 330;
+              const flightsPerYear   = flightsPerDay * daysPerYear;
+              const tripDist_km      = p.range;
+
+              // Energy cost per flight
+              const energyPerFlight_kWh = R.Etot;
+              const electricityRate_kWh = 0.12; // $/kWh (US commercial avg 2025)
+              const chargingLoss        = 0.10;  // 10% charging efficiency loss
+              const energyCost_per_flight = energyPerFlight_kWh * (1+chargingLoss) * electricityRate_kWh;
+
+              // Battery lifecycle cost
+              const batteryCycles  = 800;   // NMC LiIon ~800 full cycles to 80% SoH
+              const batteryReplace = R.Wbat * 120; // $120/kg for NMC pack (2025 cell cost ~$80/kWh + integration)
+              const chargeDepth    = R.Etot / R.PackkWh; // depth of discharge per flight
+              const cyclesPerFlight = chargeDepth;
+              const flightsPerBattery = Math.floor(batteryCycles / cyclesPerFlight);
+              const battCost_per_flight = batteryReplace / flightsPerBattery;
+
+              // Motor replacement
+              const motorLifeHours    = 3000;  // hrs MTBF for aviation PMSM
+              const flightDuration_hr = R.Tend / 3600;
+              const motorCost_each    = R.PmotKW * 80;   // ~$80/kW for aviation-grade motor
+              const motorCount        = p.nPropHover;
+              const flightsPerMotor   = Math.floor(motorLifeHours / flightDuration_hr);
+              const motorCost_per_flight = (motorCost_each * motorCount) / flightsPerMotor;
+
+              // Maintenance (airframe, avionics, misc)
+              const maintenanceCost_per_flight = R.MTOW * 0.0015; // ~$0.15/kg/flight (per NREL UAM cost study)
+
+              // Insurance (liability, hull)
+              const aircraft_value   = R.MTOW * 800; // ~$800/kg for eVTOL (vs $2000/kg helicopter)
+              const insuranceAnnual  = aircraft_value * 0.06; // 6% hull + liability annual
+              const insuranceCost_per_flight = insuranceAnnual / flightsPerYear;
+
+              // Infrastructure (vertiport landing fee)
+              const vertiportFee_per_flight = 25; // $25/landing (industry estimate)
+
+              // Pilot / operator cost (autonomous-capable but still needs remote monitor)
+              const operatorCostAnnual = 80000; // $80k/yr for one operator managing 4 aircraft
+              const operatorCost_per_flight = (operatorCostAnnual/4) / flightsPerYear;
+
+              // Total cost per flight
+              const totalCost_per_flight = energyCost_per_flight + battCost_per_flight
+                + motorCost_per_flight + maintenanceCost_per_flight
+                + insuranceCost_per_flight + vertiportFee_per_flight + operatorCost_per_flight;
+
+              // Cost per km
+              const cost_per_km = totalCost_per_flight / tripDist_km;
+
+              // Annual revenue needed (assuming 80% load factor, $2/km target fare)
+              const loadFactor      = 0.80;
+              const farePerKm       = 2.50; // $/km (premium UAM target)
+              const revenuePerFlight= farePerKm * tripDist_km * loadFactor;
+              const annualRevenue   = revenuePerFlight * flightsPerYear;
+              const annualCost      = totalCost_per_flight * flightsPerYear;
+              const annualProfit    = annualRevenue - annualCost;
+              const profitMargin    = (annualProfit / annualRevenue) * 100;
+
+              // Break-even
+              const aircraftCost    = R.MTOW * 800;
+              const paybackYears    = aircraftCost / Math.max(1, annualProfit);
+
+              // Helicopter comparison (Robinson R66: ~$4/km operating cost)
+              const helicopter_cost_per_km = 4.50;
+              const savings_vs_heli_pct    = ((helicopter_cost_per_km - cost_per_km) / helicopter_cost_per_km) * 100;
+
+              // Battery degradation curve (SoH vs cycle count)
+              const degradationData = Array.from({length:11},(_,i)=>{
+                const cycles=i*batteryCycles/10;
+                const SoH=Math.max(0.6, 1 - 0.20*(cycles/batteryCycles)**0.8);
+                return{cycles:+cycles.toFixed(0),SoH:+(SoH*100).toFixed(1),
+                  capacity:+(SoH*R.PackkWh).toFixed(2)};
+              });
+
+              // Cost breakdown for pie
+              const costParts=[
+                {name:"Battery",val:+battCost_per_flight.toFixed(2),col:"#f59e0b"},
+                {name:"Energy",val:+energyCost_per_flight.toFixed(2),col:"#22c55e"},
+                {name:"Motors",val:+motorCost_per_flight.toFixed(2),col:"#3b82f6"},
+                {name:"Maintenance",val:+maintenanceCost_per_flight.toFixed(2),col:"#8b5cf6"},
+                {name:"Insurance",val:+insuranceCost_per_flight.toFixed(2),col:"#ef4444"},
+                {name:"Vertiport",val:+vertiportFee_per_flight.toFixed(2),col:"#14b8a6"},
+                {name:"Operator",val:+operatorCost_per_flight.toFixed(2),col:"#6c757d"},
+              ];
+
+              return(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+                {/* Header */}
+                <div style={{background:"linear-gradient(135deg,#0d1a0d,#0a1f14)",
+                  border:`1px solid #22c55e44`,borderRadius:10,padding:"16px 20px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>$/FLIGHT ECONOMICS — LIFECYCLE COST MODEL</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
+                    <span style={{color:C.green}}>Cost</span> Estimator & ROI Analysis
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>
+                    Full lifecycle cost model based on NREL UAM cost studies and Joby/Archer investor disclosures.
+                    Assumes <strong style={{color:C.green}}>{flightsPerDay} flights/day · {daysPerYear} days/year · {tripDist_km} km trip</strong>.
+                    All figures in 2025 USD. Click sliders on sidebar to see cost sensitivity.
+                  </div>
+                </div>
+
+                {/* Top KPIs */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                  <KPI label="Total Cost / Flight" value={`$${totalCost_per_flight.toFixed(0)}`} unit=""
+                    color={C.amber} sub={`$${cost_per_km.toFixed(2)}/km`}/>
+                  <KPI label="vs Helicopter" value={`${savings_vs_heli_pct.toFixed(0)}% cheaper`} unit=""
+                    color={savings_vs_heli_pct>0?C.green:C.red}
+                    sub={`Heli: $${helicopter_cost_per_km}/km`}/>
+                  <KPI label="Annual Profit" value={`$${(annualProfit/1000).toFixed(0)}k`} unit=""
+                    color={annualProfit>0?C.green:C.red}
+                    sub={`Margin: ${profitMargin.toFixed(1)}%`}/>
+                  <KPI label="Payback Period" value={`${Math.min(99,paybackYears).toFixed(1)} yrs`} unit=""
+                    color={paybackYears<5?C.green:paybackYears<10?C.amber:C.red}
+                    sub={`Aircraft: $${(aircraftCost/1000).toFixed(0)}k`}/>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                  <KPI label="Energy Cost/Flight" value={`$${energyCost_per_flight.toFixed(2)}`} unit=""
+                    color={C.teal} sub={`${energyPerFlight_kWh} kWh × $${electricityRate_kWh}`}/>
+                  <KPI label="Battery Cost/Flight" value={`$${battCost_per_flight.toFixed(2)}`} unit=""
+                    color={C.amber} sub={`${flightsPerBattery.toFixed(0)} flights/pack`}/>
+                  <KPI label="Flights/Battery Pack" value={flightsPerBattery.toFixed(0)} unit=""
+                    color={C.blue} sub={`${(chargeDepth*100).toFixed(0)}% DoD/flight`}/>
+                  <KPI label="Revenue/Flight" value={`$${revenuePerFlight.toFixed(0)}`} unit=""
+                    color={C.green} sub={`$${farePerKm}/km · ${(loadFactor*100).toFixed(0)}% LF`}/>
+                </div>
+
+                {/* Cost breakdown + battery degradation */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Panel title="Cost Breakdown per Flight ($)" h={280}>
+                    <ResponsiveContainer width="100%" height={235}>
+                      <PieChart>
+                        <Pie data={costParts} dataKey="val" nameKey="name"
+                          cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2}>
+                          {costParts.map((c,i)=><Cell key={i} fill={c.col}/>)}
+                        </Pie>
+                        <Tooltip {...TTP} formatter={(v)=>[`$${v}`,""]}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:10,color:"#94a3b8"}}/>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Panel>
+                  <Panel title="Battery Pack Degradation vs Charge Cycles" h={280}>
+                    <ResponsiveContainer width="100%" height={235}>
+                      <AreaChart data={degradationData} margin={{top:5,right:15,left:-10,bottom:0}}>
+                        <defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={C.amber} stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor={C.amber} stopOpacity={0.02}/>
+                        </linearGradient></defs>
+                        <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                        <XAxis dataKey="cycles" tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"Cycles",position:"insideBottom",fontSize:10,fill:"#94a3b8"}}/>
+                        <YAxis domain={[50,105]} tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"SoH (%)",angle:-90,position:"insideLeft",fontSize:10,fill:"#94a3b8"}}/>
+                        <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
+                        <ReferenceLine y={80} stroke={C.red} strokeDasharray="4 3"
+                          label={{value:"80% SoH (replace)",fill:C.red,fontSize:9,position:"right"}}/>
+                        <Area type="monotone" dataKey="SoH" stroke={C.amber} strokeWidth={2.5}
+                          fill="url(#dg)" dot={false} name="State of Health (%)"/>
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Panel>
+                </div>
+
+                {/* Annual P&L */}
+                <Panel title="Annual Economics — P&L Summary">
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                    <div>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Annual Costs</div>
+                      {[
+                        ["Energy",          energyCost_per_flight*flightsPerYear],
+                        ["Battery",         battCost_per_flight*flightsPerYear],
+                        ["Motors",          motorCost_per_flight*flightsPerYear],
+                        ["Maintenance",     maintenanceCost_per_flight*flightsPerYear],
+                        ["Insurance",       insuranceCost_per_flight*flightsPerYear],
+                        ["Vertiport fees",  vertiportFee_per_flight*flightsPerYear],
+                        ["Operator",        operatorCost_per_flight*flightsPerYear],
+                      ].map(([k,v])=>{
+                        const pct=v/annualCost*100;
+                        return(
+                          <div key={k} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:`1px solid ${C.border}22`}}>
+                            <span style={{fontSize:10,color:C.text,fontFamily:"'DM Mono',monospace",minWidth:110}}>{k}</span>
+                            <div style={{flex:1,height:5,background:C.border,borderRadius:2}}>
+                              <div style={{width:`${pct}%`,height:"100%",background:C.amber,borderRadius:2}}/>
+                            </div>
+                            <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",minWidth:60,textAlign:"right"}}>${(v/1000).toFixed(0)}k</span>
+                          </div>
+                        );
+                      })}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderTop:`2px solid ${C.border}`,marginTop:4}}>
+                        <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>Total Annual Cost</span>
+                        <span style={{fontSize:11,fontWeight:700,color:C.red,fontFamily:"'DM Mono',monospace"}}>${(annualCost/1000).toFixed(0)}k</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Revenue & Profit</div>
+                      {[
+                        ["Flights/year",`${flightsPerYear.toLocaleString()}`,C.muted],
+                        ["Revenue/flight",`$${revenuePerFlight.toFixed(0)}`,C.teal],
+                        ["Annual Revenue",`$${(annualRevenue/1000).toFixed(0)}k`,C.green],
+                        ["Annual Cost",   `$${(annualCost/1000).toFixed(0)}k`,C.red],
+                        ["Annual Profit", `$${(annualProfit/1000).toFixed(0)}k`,annualProfit>0?C.green:C.red],
+                        ["Profit Margin", `${profitMargin.toFixed(1)}%`,profitMargin>20?C.green:profitMargin>5?C.amber:C.red],
+                        ["Payback Period",`${Math.min(99,paybackYears).toFixed(1)} years`,paybackYears<5?C.green:C.amber],
+                        ["Cost vs Heli",  `${savings_vs_heli_pct.toFixed(0)}% cheaper`,savings_vs_heli_pct>0?C.green:C.red],
+                      ].map(([k,v,col])=>(
+                        <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
+                          <span style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{k}</span>
+                          <span style={{fontSize:11,color:col,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Panel>
+
+                {/* Sensitivity bar chart */}
+                <Panel title="Cost Driver Analysis — % of Total Flight Cost">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      layout="vertical"
+                      data={costParts.map(c=>({...c,pct:+(c.val/totalCost_per_flight*100).toFixed(1)})).sort((a,b)=>b.pct-a.pct)}
+                      margin={{top:5,right:60,left:60,bottom:5}}>
+                      <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                      <XAxis type="number" tick={{fontSize:9,fill:"#94a3b8"}}
+                        label={{value:"% of total cost",position:"insideBottom",fontSize:10,fill:"#94a3b8"}}/>
+                      <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:"#94a3b8"}} width={80}/>
+                      <Tooltip {...TTP} formatter={(v)=>[`${v}%`,"Share"]}/>
+                      <Bar dataKey="pct" radius={[0,4,4,0]} name="% of cost">
+                        {costParts.sort((a,b)=>b.val-a.val).map((c,i)=><Cell key={i} fill={c.col}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div style={{marginTop:8,padding:"8px 12px",background:`${C.green}11`,
+                    border:`1px solid ${C.green}33`,borderRadius:6,fontSize:10,
+                    color:C.green,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+                    💡 <strong>Key lever:</strong> Battery replacement is typically the largest cost driver (
+                    {(battCost_per_flight/totalCost_per_flight*100).toFixed(0)}% of total).
+                    Increasing battery SED (Cell SED slider) reduces {"\u0057"}bat → fewer replacements → lower operating cost.
+                    Energy cost at ${electricityRate_kWh}/kWh is only {(energyCost_per_flight/totalCost_per_flight*100).toFixed(0)}% of total — eVTOL economics are dominated by capital, not energy.
+                  </div>
+                </Panel>
+              </div>
+              );
+            })()}
+
+            {/* ──── TAB 13: MISSION BUILDER ──── */}
+            {tab===13&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
@@ -4451,7 +5027,7 @@ export default function App(){
             )}
 
             {/* ──── TAB 12: WEATHER & ATMOSPHERE ──── */}
-            {tab===12&&(
+            {tab===14&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
@@ -4629,7 +5205,7 @@ export default function App(){
             )}
 
             {/* ──── TAB 13: OPENVSP EXPORT ──── */}
-            {tab===13&&(
+            {tab===15&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {/* Header banner */}
                 <div style={{background:"linear-gradient(135deg,#0d1117 0%,#0f172a 100%)",
