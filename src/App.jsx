@@ -1343,9 +1343,9 @@ function KPI({label,value,unit,sub,color}){
   );
 }
 
-function Panel({title,children,h}){
+function Panel({title,children,ht}){
   return(
-    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",height:h||"auto"}}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",height:ht||"auto"}}>
       <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",fontFamily:"'DM Mono',monospace",
         marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>{title}</div>
       {children}
@@ -2115,7 +2115,7 @@ export default function App(){
                   <KPI label="Mach" value={R.Mach} unit="" color={R.Mach<0.35?C.green:C.amber} sub={`Re ${(R.Re_/1e6).toFixed(2)}×10⁶`}/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Power per Phase (kW)" h={255}>
+                  <Panel title="Power per Phase (kW)" ht={255}>
                     <ResponsiveContainer width="100%" height={205}>
                       <BarChart data={[{ph:"T/O",v:R.Phov},{ph:"Climb",v:R.Pcl},{ph:"Cruise",v:R.Pcr},{ph:"Descent",v:R.Pdc},{ph:"Land",v:R.Phov},{ph:"Reserve",v:R.Pres}]}
                         margin={{top:5,right:8,left:-15,bottom:0}}>
@@ -2127,7 +2127,7 @@ export default function App(){
                       </BarChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Energy per Phase (kWh)" h={255}>
+                  <Panel title="Energy per Phase (kWh)" ht={255}>
                     <ResponsiveContainer width="100%" height={205}>
                       <BarChart data={[{ph:"T/O",v:R.Eto},{ph:"Climb",v:R.Ecl},{ph:"Cruise",v:R.Ecr},{ph:"Descent",v:R.Edc},{ph:"Land",v:R.Eld},{ph:"Reserve",v:R.Eres}]}
                         margin={{top:5,right:8,left:-15,bottom:0}}>
@@ -2193,7 +2193,7 @@ export default function App(){
                 </div>
 
                 {/* Power vs Time */}
-                <Panel title="Power vs Mission Time (kW)" h={270}>
+                <Panel title="Power vs Mission Time (kW)" ht={270}>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={R.powerSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
@@ -2213,7 +2213,7 @@ export default function App(){
                 </Panel>
 
                 {/* Energy vs Time — NEW */}
-                <Panel title="Cumulative Energy Consumed vs Mission Time (kWh)" h={270}>
+                <Panel title="Cumulative Energy Consumed vs Mission Time (kWh)" ht={270}>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={R.energySteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
@@ -2237,7 +2237,7 @@ export default function App(){
                 </Panel>
 
                 {/* Velocity vs Time */}
-                <Panel title="Velocity vs Mission Time (m/s)" h={230}>
+                <Panel title="Velocity vs Mission Time (m/s)" ht={230}>
                   <ResponsiveContainer width="100%" height={185}>
                     <AreaChart data={R.velSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
@@ -2419,7 +2419,7 @@ export default function App(){
 
                 {/* Phase Duration + Energy Radar */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Phase Duration (s)" h={240}>
+                  <Panel title="Phase Duration (s)" ht={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <PieChart>
                         <Pie data={[{n:"T/O",v:R.tto},{n:"Climb",v:R.tcl},{n:"Cruise",v:R.tcr},{n:"Descent",v:R.tdc},{n:"Land",v:R.tld},{n:"Reserve",v:R.tres}]}
@@ -2431,7 +2431,7 @@ export default function App(){
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Energy per Phase — Radar (kWh)" h={240}>
+                  <Panel title="Energy per Phase — Radar (kWh)" ht={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <RadarChart data={[{ph:"T/O",E:R.Eto},{ph:"Climb",E:R.Ecl},{ph:"Cruise",E:R.Ecr},{ph:"Desc",E:R.Edc},{ph:"Land",E:R.Eld},{ph:"Res",E:R.Eres}]}>
                         <PolarGrid stroke={C.border}/>
@@ -2458,7 +2458,7 @@ export default function App(){
                   <KPI label="Wing Loading" value={R.WL} unit="N/m²"/><KPI label="Reynolds ×10⁶" value={(R.Re_/1e6).toFixed(2)} unit=""/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="CD₀ Breakdown (Raymer Buildup)" h={265}>
+                  <Panel title="CD₀ Breakdown (Raymer Buildup)" ht={265}>
                     <ResponsiveContainer width="100%" height={215}>
                       <PieChart>
                         <Pie data={R.dragComp} dataKey="val" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={85} paddingAngle={3}>
@@ -2469,7 +2469,7 @@ export default function App(){
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Airfoil Selection Score" h={265}>
+                  <Panel title="Airfoil Selection Score" ht={265}>
                     <div style={{height:215,overflowY:"auto"}}>
                       {[...R.afScored].sort((a,b)=>b.score-a.score).map((af,i)=>(
                         <div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -2492,7 +2492,7 @@ export default function App(){
                   </Panel>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                  <Panel title="Drag Polar" h={235}>
+                  <Panel title="Drag Polar" ht={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <LineChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -2503,7 +2503,7 @@ export default function App(){
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Lift Curve" h={235}>
+                  <Panel title="Lift Curve" ht={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <LineChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -2515,7 +2515,7 @@ export default function App(){
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="L/D Ratio" h={235}>
+                  <Panel title="L/D Ratio" ht={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <AreaChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <defs><linearGradient id="ldg" x1="0" y1="0" x2="0" y2="1">
@@ -2629,7 +2629,7 @@ export default function App(){
                   <KPI label="RPM" value={R.RPM} unit="rpm"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Actuator Disk + Motor Sizing" h={380}>
+                  <Panel title="Actuator Disk + Motor Sizing" ht={380}>
                     <div style={{overflowY:"auto",maxHeight:320}}>
                     {[["No. rotors (hover)",p.nPropHover],["Design diameter",`${p.propDiam} m`],
                       ["AD-derived diameter",`${R.Drotor} m`],["Disk loading",`${R.DLrotor} N/m²`],
@@ -2648,7 +2648,7 @@ export default function App(){
                     ))}
                     </div>
                   </Panel>
-                  <Panel title="Phase Power Comparison" h={320}>
+                  <Panel title="Phase Power Comparison" ht={320}>
                     <ResponsiveContainer width="100%" height={270}>
                       <BarChart data={[{ph:"T/O",v:R.Phov},{ph:"Climb",v:R.Pcl},{ph:"Cruise",v:R.Pcr},{ph:"Descent",v:R.Pdc},{ph:"Land",v:R.Phov},{ph:"Reserve",v:R.Pres}]}
                         margin={{top:5,right:8,left:-10,bottom:0}}>
@@ -2673,7 +2673,7 @@ export default function App(){
                   <KPI label="Cell Config" value={`${R.Nseries}s×${R.Npar}p`} unit="" sub={`${R.Ncells} cells total`}/>
                   <KPI label="Final SoC" value={((1-R.Etot/R.PackkWh)*100).toFixed(1)} unit="%" color={(1-R.Etot/R.PackkWh)>=(p.socMin/(1+p.socMin))-0.01?C.green:C.red}/>
                 </div>
-                <Panel title="Battery State of Charge — Full Mission" h={285}>
+                <Panel title="Battery State of Charge — Full Mission" ht={285}>
                   <ResponsiveContainer width="100%" height={235}>
                     <AreaChart data={R.socSteps} margin={{top:5,right:10,left:-10,bottom:0}}>
                       <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
@@ -2691,7 +2691,7 @@ export default function App(){
                   </ResponsiveContainer>
                 </Panel>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Pack Architecture (21700 NMC)" h={260}>
+                  <Panel title="Pack Architecture (21700 NMC)" ht={260}>
                     {[["Cell voltage","3.6 V"],["Cell capacity","5.0 Ah"],["Bus voltage",`${R.PackV} V`],
                       ["Series cells",R.Nseries],["Parallel strings",R.Npar],["Total cells",R.Ncells],
                       ["Pack energy",`${R.PackkWh} kWh`],["Battery mass",`${R.Wbat} kg`],
@@ -2704,7 +2704,7 @@ export default function App(){
                       </div>
                     ))}
                   </Panel>
-                  <Panel title="SoC per Phase" h={260}>
+                  <Panel title="SoC per Phase" ht={260}>
                     {(()=>{
                       const E=[0,R.Eto,R.Eto+R.Ecl,R.Eto+R.Ecl+R.Ecr,R.Eto+R.Ecl+R.Ecr+R.Edc,R.Eto+R.Ecl+R.Ecr+R.Edc+R.Eld,R.Etot];
                       return["Start","After T/O","After Climb","After Cruise","After Descent","After Landing","After Reserve"].map((lbl,i)=>{
@@ -2733,7 +2733,7 @@ export default function App(){
                   <KPI label="Dive Speed Vd" value={R.VD} unit="m/s"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="V-n Structural Envelope" h={310}>
+                  <Panel title="V-n Structural Envelope" ht={310}>
                     <ResponsiveContainer width="100%" height={260}>
                       <LineChart data={R.vnData} margin={{top:10,right:30,left:10,bottom:20}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -2753,7 +2753,7 @@ export default function App(){
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Range-Payload Diagram" h={310}>
+                  <Panel title="Range-Payload Diagram" ht={310}>
                     <ResponsiveContainer width="100%" height={260}>
                       <AreaChart data={R.rpData} margin={{top:10,right:20,left:10,bottom:20}}>
                         <defs><linearGradient id="rpg" x1="0" y1="0" x2="0" y2="1">
@@ -2783,7 +2783,7 @@ export default function App(){
                   <KPI label="MAC" value={R.MAC} unit="m"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="CG / NP / AC Positions (from nose)" h={320}>
+                  <Panel title="CG / NP / AC Positions (from nose)" ht={320}>
                     <div style={{position:"relative",height:90,margin:"10px 0 8px",background:"#0a0d14",borderRadius:6,border:"1px solid #1c2333"}}>
                       {/* fuselage body */}
                       <div style={{position:"absolute",left:"10%",right:"8%",top:"44%",height:4,background:"#1e2a3a",borderRadius:2}}/>
@@ -2817,7 +2817,7 @@ export default function App(){
                       </div>
                     ))}
                   </Panel>
-                  <Panel title="Empty Weight Breakdown (Roskam)" h={290}>
+                  <Panel title="Empty Weight Breakdown (Roskam)" ht={290}>
                     <ResponsiveContainer width="100%" height={240}>
                       <BarChart layout="vertical" data={R.weightBreak} margin={{top:0,right:30,left:60,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -2911,7 +2911,7 @@ export default function App(){
                   </div>
                 </Panel>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="MTOW Composition" h={235}>
+                  <Panel title="MTOW Composition" ht={235}>
                     <ResponsiveContainer width="100%" height={190}>
                       <PieChart>
                         <Pie data={[{name:"Empty",val:R.Wempty},{name:"Battery",val:R.Wbat},{name:"Payload",val:p.payload}]}
@@ -2923,7 +2923,7 @@ export default function App(){
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Feasibility Checks" h={235}>
+                  <Panel title="Feasibility Checks" ht={235}>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:4}}>
                       {R.checks.map((c,i)=>(
                         <div key={i} style={{background:C.bg,borderRadius:5,padding:"7px 9px",border:`1px solid ${c.ok?C.green+"33":C.red+"33"}`}}>
@@ -3327,7 +3327,7 @@ export default function App(){
                   </div>
                 </div>
 
-                <Panel title={`MTOW Convergence History — Actual Run at ε = 10^${p.convTolExp} (${R.itersR2} R2 iters${R.r2Converged?"":", cap hit"})`} h={280}>
+                <Panel title={`MTOW Convergence History — Actual Run at ε = 10^${p.convTolExp} (${R.itersR2} R2 iters${R.r2Converged?"":", cap hit"})`} ht={280}>
                   <ResponsiveContainer width="100%" height={230}>
                     <LineChart data={R.convData} margin={{top:5,right:20,left:-10,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -3341,7 +3341,7 @@ export default function App(){
                   </ResponsiveContainer>
                 </Panel>
 
-                <Panel title="Energy Convergence History" h={255}>
+                <Panel title="Energy Convergence History" ht={255}>
                   <ResponsiveContainer width="100%" height={205}>
                     <LineChart data={R.convData.filter(d=>d.Energy!=null)} margin={{top:5,right:20,left:-10,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -3355,7 +3355,7 @@ export default function App(){
                 </Panel>
 
                 {/* Residual log plot */}
-                <Panel title={`Residual Convergence — log₁₀(|ΔW₀|) per Iteration  [ε = ${R.tol.toExponential(0)} → log₁₀(ε) = ${p.convTolExp}]`} h={270}>
+                <Panel title={`Residual Convergence — log₁₀(|ΔW₀|) per Iteration  [ε = ${R.tol.toExponential(0)} → log₁₀(ε) = ${p.convTolExp}]`} ht={270}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:4}}>
                     Each bar shows log₁₀ of the MTOW change per iteration. Convergence when bar drops below the <span style={{color:"#22d3ee"}}>ε threshold line</span>.
                   </div>
@@ -3403,7 +3403,7 @@ export default function App(){
                 </Panel>
 
                 {/* T/W vs MTOW Trade Chart */}
-                <Panel title={`T/W Ratio vs MTOW — Round 1 vs Round 2 at T/W = ${p.twRatio.toFixed(2)}`} h={320}>
+                <Panel title={`T/W Ratio vs MTOW — Round 1 vs Round 2 at T/W = ${p.twRatio.toFixed(2)}`} ht={320}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4}}>
                     Round 1 is flat (T/W doesn't affect energy-only sizing). Round 2 scales as T/W^1.5 — higher thrust margin → higher hover power → heavier battery → higher MTOW.
                     Current T/W = <span style={{color:C.amber,fontWeight:700}}>{p.twRatio.toFixed(2)}</span> highlighted.
@@ -3641,7 +3641,7 @@ export default function App(){
                     </div>
 
                     {/* MTOW Probability Distribution */}
-                    <Panel title={`MTOW Probability Distribution — ${mcResults.N.toLocaleString()} Monte Carlo Samples`} h={320}>
+                    <Panel title={`MTOW Probability Distribution — ${mcResults.N.toLocaleString()} Monte Carlo Samples`} ht={320}>
                       <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4,fontFamily:"'DM Mono',monospace"}}>
                         Each bar = count of designs in that MTOW bin. Bell shape confirms normal convergence.
                         <span style={{color:C.amber}}> Nominal MTOW = {R.MTOW} kg</span> (deterministic).
@@ -3671,7 +3671,7 @@ export default function App(){
                     </Panel>
 
                     {/* CDF */}
-                    <Panel title="Cumulative Distribution Function (CDF) — MTOW" h={290}>
+                    <Panel title="Cumulative Distribution Function (CDF) — MTOW" ht={290}>
                       <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4,fontFamily:"'DM Mono',monospace"}}>
                         Read as: <span style={{color:C.green}}>P(MTOW ≤ x)</span>. The <span style={{color:C.amber}}>P90 line</span> shows that 90% of all possible designs have MTOW below this value.
                         This is the key output for design margin decisions.
@@ -3700,7 +3700,7 @@ export default function App(){
 
                     {/* Other distributions row */}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                      <Panel title="Total Energy Distribution (kWh)" h={240}>
+                      <Panel title="Total Energy Distribution (kWh)" ht={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Etot.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -3714,7 +3714,7 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Static Margin Distribution (% MAC)" h={240}>
+                      <Panel title="Static Margin Distribution (% MAC)" ht={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.SM.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -3734,7 +3734,7 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Hover Power Distribution (kW)" h={240}>
+                      <Panel title="Hover Power Distribution (kW)" ht={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Phov.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -3748,7 +3748,7 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Battery Mass Distribution (kg)" h={240}>
+                      <Panel title="Battery Mass Distribution (kg)" ht={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Wbat.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
@@ -4492,7 +4492,7 @@ export default function App(){
                 </div>
 
                 {/* BPF Harmonics spectrum */}
-                <Panel title="BPF Tonal Spectrum — First 4 Harmonics (A-weighted)" h={270}>
+                <Panel title="BPF Tonal Spectrum — First 4 Harmonics (A-weighted)" ht={270}>
                   <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
                     Tonal noise at integer multiples of BPF = {R.BPF.toFixed(1)} Hz.
                     Higher harmonics attenuate at ~6 dB/octave. A-weighting penalises low frequencies.
@@ -4506,10 +4506,10 @@ export default function App(){
                       <YAxis tick={{fontSize:9,fill:C.muted}}
                         label={{value:"SPL (dBA at 150m)",angle:-90,position:"insideLeft",fontSize:11,fill:C.muted}}/>
                       <Tooltip {...TTP} formatter={(v)=>[`${v} dBA`,"SPL"]}
-                        labelFormatter={f=>`BPF×${R.bpfHarmonics.findIndex(h=>h.freq===f)+1} = ${f} Hz`}/>
+                        labelFormatter={f=>`BPF×${R.bpfHarmonics.findIndex(harm=>harm.freq===f)+1} = ${f} Hz`}/>
                       <Bar dataKey="SPL" radius={[4,4,0,0]} name="dBA at 150m">
-                        {R.bpfHarmonics.map((h,i)=>(
-                          <Cell key={i} fill={h.SPL<=65?"#22c55e":h.SPL<=75?"#f59e0b":"#ef4444"}/>
+                        {R.bpfHarmonics.map((harm,i)=>(
+                          <Cell key={i} fill={harm.SPL<=65?"#22c55e":harm.SPL<=75?"#f59e0b":"#ef4444"}/>
                         ))}
                       </Bar>
                       <ReferenceLine y={65} stroke={C.green} strokeDasharray="4 3"
@@ -4749,7 +4749,7 @@ export default function App(){
 
                 {/* Cost breakdown + battery degradation */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Cost Breakdown per Flight ($)" h={280}>
+                  <Panel title="Cost Breakdown per Flight ($)" ht={280}>
                     <ResponsiveContainer width="100%" height={235}>
                       <PieChart>
                         <Pie data={costParts} dataKey="val" nameKey="name"
@@ -4761,7 +4761,7 @@ export default function App(){
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Battery Pack Degradation vs Charge Cycles" h={280}>
+                  <Panel title="Battery Pack Degradation vs Charge Cycles" ht={280}>
                     <ResponsiveContainer width="100%" height={235}>
                       <AreaChart data={degradationData} margin={{top:5,right:15,left:-10,bottom:0}}>
                         <defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
@@ -5014,7 +5014,7 @@ export default function App(){
                     </div>
 
                     {/* Phase breakdown chart */}
-                    <Panel title="Phase Power & Energy Breakdown" h={280}>
+                    <Panel title="Phase Power & Energy Breakdown" ht={280}>
                       <ResponsiveContainer width="100%" height={235}>
                         <BarChart data={mbResults.phases.map(ph=>({
                             name:ph.label,power:ph.power,energy:ph.energy,
