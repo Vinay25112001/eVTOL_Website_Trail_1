@@ -706,7 +706,7 @@ function generateReport(p, R, branding={}) {
     `<tr><td class="td-label">${label}</td><td class="td-formula">${formula}</td><td class="td-value">${value}</td><td class="td-unit">${unit}</td></tr>`;
 
   const table = (headers, rows) =>
-    `<table class="data-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
+    `<table class="data-table"><thead><tr>${headers.map(hdr=>`<th>${hdr}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
 
   const check = (ok, label, val) =>
     `<tr class="${ok?"ok":"fail"}"><td>${ok?"✓":"✗"}</td><td>${label}</td><td>${val}</td></tr>`;
@@ -2144,8 +2144,8 @@ export default function App(){
                   <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
                       <thead><tr style={{background:C.panel}}>
-                        {["Phase","Time (s)","Power (kW)","Energy (kWh)","Velocity (m/s)"].map(h=>(
-                          <th key={h} style={{padding:"5px 12px",textAlign:"left",color:C.muted,fontFamily:"'DM Mono',monospace",fontSize:8,fontWeight:600,letterSpacing:"0.05em"}}>{h}</th>
+                        {["Phase","Time (s)","Power (kW)","Energy (kWh)","Velocity (m/s)"].map(hdr=>(
+                          <th key={hdr} style={{padding:"5px 12px",textAlign:"left",color:C.muted,fontFamily:"'DM Mono',monospace",fontSize:8,fontWeight:600,letterSpacing:"0.05em"}}>{hdr}</th>
                         ))}
                       </tr></thead>
                       <tbody>
@@ -2365,9 +2365,9 @@ export default function App(){
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                       <thead>
                         <tr style={{background:C.panel}}>
-                          {["Phase","Power (kW)","Energy (kWh)","Duration (s)","% Total E","% Total Time"].map(h=>(
-                            <th key={h} style={{padding:"5px 10px",textAlign:"right",color:C.muted,fontSize:8,fontWeight:600,letterSpacing:"0.05em",
-                              textTransform:"uppercase",":first-child":{textAlign:"left"}}}>{h}</th>
+                          {["Phase","Power (kW)","Energy (kWh)","Duration (s)","% Total E","% Total Time"].map(hdr=>(
+                            <th key={hdr} style={{padding:"5px 10px",textAlign:"right",color:C.muted,fontSize:8,fontWeight:600,letterSpacing:"0.05em",
+                              textTransform:"uppercase",":first-child":{textAlign:"left"}}}>{hdr}</th>
                           ))}
                         </tr>
                       </thead>
@@ -3377,8 +3377,8 @@ export default function App(){
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace"}}>
                     <thead>
                       <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                        {["Tolerance","R1 Iters","R2 Iters","Total","MTOW (kg)","ΔM vs 1e-10"].map(h=>(
-                          <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{h}</th>
+                        {["Tolerance","R1 Iters","R2 Iters","Total","MTOW (kg)","ΔM vs 1e-10"].map(hdr=>(
+                          <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{hdr}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3438,8 +3438,8 @@ export default function App(){
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace"}}>
                     <thead>
                       <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                        {["T/W","R1 MTOW (kg)","R2 MTOW (kg)","ΔM (kg)","Δ% vs R1","Phov at R2 (kW)"].map(h=>(
-                          <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{h}</th>
+                        {["T/W","R1 MTOW (kg)","R2 MTOW (kg)","ΔM (kg)","Δ% vs R1","Phov at R2 (kW)"].map(hdr=>(
+                          <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{hdr}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3773,9 +3773,9 @@ export default function App(){
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                           <thead>
                             <tr style={{background:C.panel}}>
-                              {["Quantity","Unit","Min","P5","P25","Median","P75","P95","Max","Mean","σ","CV %"].map(h=>(
-                                <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",
-                                  fontSize:9,letterSpacing:"0.04em"}}>{h}</th>
+                              {["Quantity","Unit","Min","P5","P25","Median","P75","P95","Max","Mean","σ","CV %"].map(hdr=>(
+                                <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",
+                                  fontSize:9,letterSpacing:"0.04em"}}>{hdr}</th>
                               ))}
                             </tr>
                           </thead>
@@ -5041,8 +5041,8 @@ export default function App(){
                       <div style={{overflowX:"auto"}}>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                           <thead><tr style={{background:C.panel}}>
-                            {["Phase","Type","Power (kW)","Energy (kWh)","Time (s)","Distance (km)","% Total E"].map(h=>(
-                              <th key={h} style={{padding:"5px 8px",color:C.muted,fontSize:9,fontWeight:600,textAlign:"right"}}>{h}</th>
+                            {["Phase","Type","Power (kW)","Energy (kWh)","Time (s)","Distance (km)","% Total E"].map(hdr=>(
+                              <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontSize:9,fontWeight:600,textAlign:"right"}}>{hdr}</th>
                             ))}
                           </tr></thead>
                           <tbody>
@@ -5322,9 +5322,9 @@ export default function App(){
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                       <thead>
                         <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                          {["Component","x_LE (m)","y (m)","z (m)","Dihedral"].map(h=>(
-                            <th key={h} style={{textAlign:"left",padding:"3px 6px",fontSize:8,color:C.muted,
-                              textTransform:"uppercase",letterSpacing:"0.08em"}}>{h}</th>
+                          {["Component","x_LE (m)","y (m)","z (m)","Dihedral"].map(hdr=>(
+                            <th key={hdr} style={{textAlign:"left",padding:"3px 6px",fontSize:8,color:C.muted,
+                              textTransform:"uppercase",letterSpacing:"0.08em"}}>{hdr}</th>
                           ))}
                         </tr>
                       </thead>
