@@ -5471,8 +5471,6 @@ export default function App(){
               </div>
             )}
 
-            </>}
-
             {/* ──── TAB 16: COMMUNITY & LEADERBOARD ──── */}
             {tab===16&&(
               <LeaderboardPanel C={C} onLoadDesign={(row)=>{
