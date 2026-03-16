@@ -1258,7 +1258,7 @@ export default function App(){
     fusLen:7.2,fusDiam:1.65,
     // ── V-tail (NASA NDARC UAM values for FBW lift+cruise eVTOL) ──────────
     vtGamma:45,
-    vtCh:0.28,            // Ch reduced from 0.40: FBW+DEP reduces required pitch authority
+    vtCh:0.45,            // Ch=0.45 → SM_vt ≈ +7-8% MAC (stable, FBW eVTOL target 5–25%)
     vtCv:0.032,           // Cv reduced from 0.05: same rationale; gives tail/wing ~37%
     vtAR:2.5,
   });
@@ -1326,7 +1326,7 @@ export default function App(){
           LD:14,AR:9,eOsw:0.85,clDesign:0.55,taper:0.45,tc:0.15,nPropHover:6,propDiam:3.0,twRatio:1.2,convTolExp:-6,
           etaHov:0.70,etaSys:0.80,rateOfClimb:5.08,climbAngle:5,sedCell:300,etaBat:0.90,socMin:0.2,ewf:0.50,
           fusLen:7.2,fusDiam:1.65,
-          vtGamma:45,vtCh:0.28,vtCv:0.032,vtAR:2.5})}
+          vtGamma:45,vtCh:0.45,vtCv:0.032,vtAR:2.5})}
           style={{padding:"5px 12px",background:"transparent",border:`1px solid ${C.border}`,
             borderRadius:4,color:C.muted,fontSize:9,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>↺ RESET</button>
         {R&&(
@@ -1407,7 +1407,7 @@ export default function App(){
           <Acc title="V-Tail Design" icon="🦋">
             <Slider label="Dihedral Angle Γ" unit="°" value={p.vtGamma} min={20} max={70} step={1} onChange={set("vtGamma")}
               note={R?`Optimal: ${R.vtGamma_opt}°`:""}/>
-            <Slider label="H-Tail Vol. Coeff Ch" unit="" value={p.vtCh} min={0.15} max={0.60} step={0.01} onChange={set("vtCh")} note="FBW eVTOL (NASA): 0.25–0.32"/>
+            <Slider label="H-Tail Vol. Coeff Ch" unit="" value={p.vtCh} min={0.15} max={0.60} step={0.01} onChange={set("vtCh")} note="FBW eVTOL: 0.35–0.50 | SM target 5–25%"/>
             <Slider label="V-Tail Vol. Coeff Cv" unit="" value={p.vtCv} min={0.015} max={0.10} step={0.005} onChange={set("vtCv")} note="FBW eVTOL (NASA): 0.025–0.040"/>
             <Slider label="Panel Aspect Ratio" unit="" value={p.vtAR} min={1.5} max={4.0} step={0.1} onChange={set("vtAR")} note="Typical 2.0–3.0"/>
           </Acc>
