@@ -1231,8 +1231,8 @@ function Acc({title,icon,children}){
   );
 }
 
-const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","OpenVSP"];
-const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🛩️"];
+const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","Mission Builder","Weather & Atmos","OpenVSP"];
+const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🗺️","🌤️","🛩️"];
 const TTP={contentStyle:{background:"#131c2e",border:"1px solid #2a3a5c",borderRadius:6,fontSize:12,color:"#e2e8f0",boxShadow:"0 4px 20px rgba(0,0,0,0.8)"},labelStyle:{color:"#94a3b8",fontSize:12,fontWeight:600},itemStyle:{color:"#e2e8f0",fontSize:12}};
 
 /* ═══════════════════════════════════
@@ -1250,18 +1250,59 @@ export default function App(){
   });
   // Monte Carlo state
   const[mcRanges,setMcRanges]=useState({
-    sedCell:   {min:250, max:350, dist:"normal"},  // Battery SED Wh/kg — ±17%  (lit: 250-350 Wh/kg)
-    ewf:       {min:0.43,max:0.57,dist:"normal"},  // EWF — ±14%  (lit: 0.45-0.55 + margin)
-    LD:        {min:11,  max:17,  dist:"normal"},  // L/D — ±18%  (lit: conceptual LD uncertainty)
-    etaHov:    {min:0.62,max:0.78,dist:"normal"},  // Hover FOM — ±11%
-    etaSys:    {min:0.73,max:0.87,dist:"normal"},  // System η — ±8%
-    etaBat:    {min:0.85,max:0.95,dist:"normal"},  // Battery η — ±5%
-    AR:        {min:7,   max:11,  dist:"normal"},  // Aspect ratio — ±20%
-    payload:   {min:410, max:500, dist:"uniform"}, // Payload kg — ±10%
+    sedCell:   {min:250, max:350, dist:"normal"},
+    ewf:       {min:0.43,max:0.57,dist:"normal"},
+    LD:        {min:11,  max:17,  dist:"normal"},
+    etaHov:    {min:0.62,max:0.78,dist:"normal"},
+    etaSys:    {min:0.73,max:0.87,dist:"normal"},
+    etaBat:    {min:0.85,max:0.95,dist:"normal"},
+    AR:        {min:7,   max:11,  dist:"normal"},
+    payload:   {min:410, max:500, dist:"uniform"},
   });
   const[mcN,setMcN]=useState(1000);
   const[mcResults,setMcResults]=useState(null);
   const[mcRunning,setMcRunning]=useState(false);
+
+  // Mission Builder state
+  const PHASE_TYPES={
+    hover:    {label:"Hover",      icon:"🚁",col:"#ff6b35",fields:["duration","altitude"], defaults:{duration:60,altitude:15}},
+    climb:    {label:"Climb",      icon:"📈",col:"#ffd23f",fields:["distance","angle"],    defaults:{distance:5,angle:5}},
+    cruise:   {label:"Cruise",     icon:"✈️", col:"#06d6a0",fields:["distance","speed"],   defaults:{distance:50,speed:67}},
+    descent:  {label:"Descent",    icon:"📉",col:"#118ab2",fields:["distance","angle"],    defaults:{distance:4,angle:4}},
+    divert:   {label:"Divert",     icon:"↗️", col:"#8338ec",fields:["distance","speed"],   defaults:{distance:20,speed:60}},
+    reserve:  {label:"Reserve",    icon:"🔄",col:"#6c757d",fields:["distance","speed"],    defaults:{distance:40,speed:47}},
+    loiter:   {label:"Loiter",     icon:"⭕",col:"#e91e63",fields:["duration","altitude"],  defaults:{duration:120,altitude:100}},
+    wind_corr:{label:"Wind Corr",  icon:"💨",col:"#00bcd4",fields:["distance","windSpeed"],defaults:{distance:10,windSpeed:15}},
+  };
+  const uid2=()=>Math.random().toString(36).slice(2,8);
+  const[customPhases,setCustomPhases]=useState([
+    {id:uid2(),type:"hover",  duration:30,  altitude:15,  label:"Takeoff Hover"},
+    {id:uid2(),type:"climb",  distance:5,   angle:5,      label:"Climb"},
+    {id:uid2(),type:"cruise", distance:200, speed:67,     label:"Cruise"},
+    {id:uid2(),type:"descent",distance:4,   angle:4,      label:"Descent"},
+    {id:uid2(),type:"hover",  duration:30,  altitude:15,  label:"Landing Hover"},
+    {id:uid2(),type:"reserve",distance:40,  speed:47,     label:"Reserve"},
+  ]);
+  const[dragIdx,setDragIdx]=useState(null);
+  const[dragOverIdx,setDragOverIdx]=useState(null);
+  const[mbResults,setMbResults]=useState(null);
+
+  // Weather & Atmosphere state
+  const[wxSearch,setWxSearch]=useState("");
+  const[wxData,setWxData]=useState(null);
+  const[wxLoading,setWxLoading]=useState(false);
+  const[wxError,setWxError]=useState("");
+  const[wxResults,setWxResults]=useState(null);
+  const WX_PRESETS=[
+    {name:"Denver, CO",   lat:39.7392,lon:-104.9903,alt:1609,flag:"🇺🇸"},
+    {name:"Miami, FL",    lat:25.7617,lon:-80.1918, alt:1,   flag:"🇺🇸"},
+    {name:"Chicago, IL",  lat:41.8781,lon:-87.6298, alt:182, flag:"🇺🇸"},
+    {name:"Los Angeles",  lat:34.0522,lon:-118.2437,alt:71,  flag:"🇺🇸"},
+    {name:"London, UK",   lat:51.5074,lon:-0.1278,  alt:11,  flag:"🇬🇧"},
+    {name:"Dubai, UAE",   lat:25.2048,lon:55.2708,  alt:5,   flag:"🇦🇪"},
+    {name:"Singapore",    lat:1.3521, lon:103.8198, alt:15,  flag:"🇸🇬"},
+    {name:"Dayton, OH",   lat:39.7589,lon:-84.1916, alt:306, flag:"🇺🇸"},
+  ];
 
   // Update global C on every render based on theme
   C = darkMode ? DARK : LIGHT;
@@ -1340,6 +1381,159 @@ export default function App(){
     a.href=url; a.download=`eVTOL_Results_${new Date().toISOString().slice(0,10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
     if(user) addNotif(user.id,{title:"CSV Exported",body:"Results downloaded as spreadsheet.",type:"success"});
+  };
+
+  /* ── Mission Builder — compute custom mission ── */
+  const computeCustomMission=()=>{
+    const g0=9.81,rhoMSL=1.225,T0=288.15,Rgas=287,GAM=1.4,L=0.0065;
+    const MTOW=R.MTOW, W=MTOW*g0;
+    let totalE=0,totalT=0,totalDist=0,phaseResults=[];
+    customPhases.forEach(ph=>{
+      const pt=PHASE_TYPES[ph.type];
+      let E=0,t=0,dist=0,power=0;
+      const cruiseAlt=p.cruiseAlt;
+      const Tcr=T0-L*cruiseAlt;
+      const rhoCr=rhoMSL*Math.pow(Tcr/T0,(-g0/(-L*Rgas))-1);
+      switch(ph.type){
+        case"hover":case"loiter":{
+          const DL=(W*p.twRatio)/(Math.PI*Math.pow(p.propDiam/2,2)*p.nPropHover);
+          power=(W*p.twRatio/p.etaHov)*Math.sqrt(DL/(2*rhoMSL))/1000;
+          t=ph.duration||60; dist=0;
+          E=power*t/3600; break;
+        }
+        case"climb":{
+          const RoC=p.rateOfClimb,ang=(ph.angle||5)*Math.PI/180;
+          const Vcl=RoC/Math.sin(ang);
+          const LDcl=p.LD*(1-0.13);
+          power=(W/p.etaSys)*(RoC+Vcl/LDcl)/1000;
+          dist=(ph.distance||5)*1000; t=dist/Vcl;
+          E=power*t/3600; break;
+        }
+        case"descent":{
+          const ang=(ph.angle||4)*Math.PI/180;
+          const desLD=p.LD;
+          const Vdc=p.rateOfClimb/Math.sin(ang);
+          const LDcl=p.LD*(1-0.13);
+          power=Math.max(0,(W/p.etaSys)*(-p.rateOfClimb+Vdc/LDcl)/1000);
+          dist=(ph.distance||4)*1000; t=dist/Vdc;
+          E=power*t/3600; break;
+        }
+        case"cruise":case"divert":{
+          const spd=ph.speed||p.vCruise;
+          power=(W/p.etaSys)*(spd/p.LD)/1000;
+          dist=(ph.distance||50)*1000; t=dist/spd;
+          E=power*t/3600; break;
+        }
+        case"reserve":{
+          const Vres=0.7*(ph.speed||p.vCruise);
+          power=(W/p.etaSys)*(Vres/p.LD)/1000;
+          dist=(ph.distance||40)*1000; t=dist/Vres;
+          E=power*t/3600; break;
+        }
+        case"wind_corr":{
+          const Veff=Math.max(10,(ph.speed||p.vCruise)-(ph.windSpeed||15)*0.5);
+          power=(W/p.etaSys)*(Veff/p.LD)/1000*(1+(ph.windSpeed||15)/100);
+          dist=(ph.distance||10)*1000; t=dist/Veff;
+          E=power*t/3600; break;
+        }
+      }
+      totalE+=E; totalT+=t; totalDist+=dist;
+      phaseResults.push({...ph,power:+power.toFixed(2),energy:+E.toFixed(3),time:+t.toFixed(0),distance:+dist.toFixed(0)});
+    });
+    const PackkWh=R.PackkWh;
+    const finalSoC=(1-totalE/PackkWh)*100;
+    const totalRange=totalDist/1000;
+    setMbResults({phases:phaseResults,totalE:+totalE.toFixed(3),totalT:+totalT.toFixed(0),
+      totalRange:+totalRange.toFixed(1),finalSoC:+finalSoC.toFixed(1),
+      feasible:finalSoC>0&&totalE<=PackkWh});
+  };
+
+  /* ── Weather fetch — Open-Meteo (no API key needed) ── */
+  const fetchWeather=async(lat,lon,cityName,elevation=0)=>{
+    setWxLoading(true); setWxError(""); setWxData(null); setWxResults(null);
+    try{
+      // Fetch current weather + hourly for context
+      const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+        +`&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code`
+        +`&hourly=temperature_2m,pressure_msl,wind_speed_80m&forecast_days=1&timezone=auto`;
+      const res=await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data=await res.json();
+      const cur=data.current;
+      const T_C=cur.temperature_2m;
+      const P_hPa=cur.surface_pressure;
+      const wind_ms=cur.wind_speed_10m/3.6; // km/h → m/s
+      const wind_dir=cur.wind_direction_10m;
+      const humidity=cur.relative_humidity_2m;
+      // ISA calculations with actual weather
+      const T_K=T_C+273.15;
+      const T_std=288.15-0.0065*elevation; // ISA temperature at this altitude
+      const P_Pa=P_hPa*100;
+      const rho_actual=P_Pa/(287*T_K);
+      const rho_ISA=1.225*Math.pow(T_K/288.15,4.256); // approx density ratio
+      const sigma=rho_actual/1.225; // density ratio vs sea level
+      const a_actual=Math.sqrt(1.4*287*T_K);
+      const deltaT=T_C-(T_std-273.15); // temp deviation from ISA
+      // Run sizing with actual atmospheric conditions
+      // Modify key atmospheric parameters
+      const pWeather={...p, cruiseAlt:elevation};
+      // Compute performance impacts
+      const MTOW=R.MTOW,W=MTOW*9.81;
+      // Hover power change with density
+      const DL_ISA=(W*p.twRatio)/(Math.PI*Math.pow(p.propDiam/2,2)*p.nPropHover);
+      const P_hov_ISA=R.Phov;
+      const P_hov_wx=(W*p.twRatio/p.etaHov)*Math.sqrt(DL_ISA/(2*rho_actual))/1000;
+      const P_hov_delta_pct=((P_hov_wx/P_hov_ISA)-1)*100;
+      // Cruise speed / stall speed change with density
+      const V_stall_wx=R.Vstall*Math.sqrt(1/sigma);
+      const V_stall_delta=V_stall_wx-R.Vstall;
+      // Cruise power ~ proportional to 1/rho for same speed
+      const P_cr_wx=R.Pcr*(1.225/rho_actual);
+      const P_cr_delta_pct=((P_cr_wx/R.Pcr)-1)*100;
+      // Range impact (Breguet — higher density = less drag = more range)
+      const range_delta_pct=-P_hov_delta_pct*0.3; // approx
+      // Mach change with temperature
+      const Mach_wx=p.vCruise/a_actual;
+      // Wind impact on range
+      const headwind_component=wind_ms*Math.cos((wind_dir||0)*Math.PI/180);
+      const Vg=p.vCruise-headwind_component; // ground speed
+      const range_wind_pct=((Vg/p.vCruise)-1)*100;
+      // Weather code description
+      const WX_CODES={0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",
+        45:"Foggy",48:"Icy fog",51:"Light drizzle",61:"Light rain",71:"Light snow",
+        80:"Rain showers",95:"Thunderstorm",99:"Heavy thunderstorm"};
+      const wx_desc=WX_CODES[cur.weather_code]||`Code ${cur.weather_code}`;
+      setWxData({cityName,lat,lon,elevation,T_C,P_hPa,wind_ms,wind_dir,humidity,wx_desc,
+        rho_actual:+rho_actual.toFixed(4),sigma:+sigma.toFixed(4),deltaT:+deltaT.toFixed(1),a_actual:+a_actual.toFixed(1)});
+      setWxResults({
+        P_hov_wx:+P_hov_wx.toFixed(2),P_hov_delta_pct:+P_hov_delta_pct.toFixed(1),
+        P_cr_wx:+P_cr_wx.toFixed(2),P_cr_delta_pct:+P_cr_delta_pct.toFixed(1),
+        V_stall_wx:+V_stall_wx.toFixed(2),V_stall_delta:+V_stall_delta.toFixed(2),
+        Mach_wx:+Mach_wx.toFixed(4),
+        headwind_component:+headwind_component.toFixed(1),
+        Vg:+Vg.toFixed(1),range_wind_pct:+range_wind_pct.toFixed(1),
+        rho_actual:+rho_actual.toFixed(4),sigma:+sigma.toFixed(4),
+      });
+      setWxLoading(false);
+    }catch(e){
+      setWxError(`Failed to fetch weather: ${e.message}`);
+      setWxLoading(false);
+    }
+  };
+
+  const searchCity=async()=>{
+    if(!wxSearch.trim()) return;
+    setWxLoading(true); setWxError("");
+    try{
+      const geo=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(wxSearch.trim())}&count=1&language=en&format=json`);
+      const gd=await geo.json();
+      if(!gd.results?.length){ setWxError("City not found. Try a different name."); setWxLoading(false); return; }
+      const loc=gd.results[0];
+      await fetchWeather(loc.latitude,loc.longitude,`${loc.name}, ${loc.country}`,loc.elevation||0);
+    }catch(e){
+      setWxError(`Geocoding failed: ${e.message}`);
+      setWxLoading(false);
+    }
   };
 
   /* ── Monte Carlo Runner ── */
@@ -4036,8 +4230,406 @@ export default function App(){
               );
             })()}
 
-            {/* ──── TAB 11: OPENVSP EXPORT ──── */}
+            {/* ──── TAB 11: MISSION BUILDER ──── */}
             {tab===11&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+                {/* Header */}
+                <div style={{background:"linear-gradient(135deg,#0d1117,#0a1f14)",
+                  border:`1px solid #06d6a044`,borderRadius:10,padding:"16px 20px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>CUSTOM MISSION PROFILE — DRAG & DROP PHASES</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
+                    <span style={{color:"#06d6a0"}}>Mission Builder</span>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>
+                    Build any mission profile by dragging phases into order. Add hover-at-destination, emergency divert, wind correction segments, loiter patterns.
+                    Click <strong style={{color:"#06d6a0"}}>▶ Compute Mission</strong> to run the physics engine on your custom profile.
+                  </div>
+                </div>
+
+                {/* Phase palette */}
+                <Panel title="Phase Library — Click to Add to Mission">
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {Object.entries(PHASE_TYPES).map(([type,pt])=>(
+                      <button key={type} onClick={()=>{
+                          const def=pt.defaults;
+                          setCustomPhases(prev=>[...prev,{id:uid2(),type,...def,label:pt.label}]);
+                        }} type="button"
+                        style={{padding:"6px 12px",background:`${pt.col}15`,
+                          border:`1px solid ${pt.col}55`,borderRadius:6,cursor:"pointer",
+                          display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:14}}>{pt.icon}</span>
+                        <span style={{fontSize:11,color:pt.col,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{pt.label}</span>
+                        <span style={{fontSize:10,color:C.muted}}>+</span>
+                      </button>
+                    ))}
+                  </div>
+                </Panel>
+
+                {/* Drag-and-drop phase list */}
+                <Panel title={`Mission Profile — ${customPhases.length} Phases (drag to reorder)`}>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {customPhases.map((ph,i)=>{
+                      const pt=PHASE_TYPES[ph.type];
+                      const isDragging=dragIdx===i;
+                      const isOver=dragOverIdx===i;
+                      return(
+                        <div key={ph.id}
+                          draggable
+                          onDragStart={()=>setDragIdx(i)}
+                          onDragOver={e=>{e.preventDefault();setDragOverIdx(i);}}
+                          onDrop={e=>{
+                            e.preventDefault();
+                            if(dragIdx===null||dragIdx===i) return;
+                            const newPhases=[...customPhases];
+                            const [moved]=newPhases.splice(dragIdx,1);
+                            newPhases.splice(i,0,moved);
+                            setCustomPhases(newPhases);
+                            setDragIdx(null); setDragOverIdx(null);
+                          }}
+                          onDragEnd={()=>{setDragIdx(null);setDragOverIdx(null);}}
+                          style={{
+                            background:isDragging?`${pt.col}22`:isOver?`${pt.col}15`:C.bg,
+                            border:`1px solid ${isOver?pt.col:pt.col+"44"}`,
+                            borderLeft:`3px solid ${pt.col}`,
+                            borderRadius:8,padding:"10px 14px",cursor:"grab",
+                            opacity:isDragging?0.5:1,transition:"all 0.15s",
+                            display:"flex",alignItems:"center",gap:12}}>
+                          {/* Drag handle */}
+                          <span style={{fontSize:14,color:C.dim,cursor:"grab",userSelect:"none"}}>⠿</span>
+                          <span style={{fontSize:16}}>{pt.icon}</span>
+                          {/* Label */}
+                          <input value={ph.label} onChange={e=>{
+                              setCustomPhases(prev=>prev.map((x,j)=>j===i?{...x,label:e.target.value}:x));
+                            }}
+                            style={{background:"transparent",border:"none",color:pt.col,fontSize:11,
+                              fontWeight:700,fontFamily:"'DM Mono',monospace",outline:"none",width:120}}/>
+                          {/* Phase-specific fields */}
+                          <div style={{display:"flex",gap:10,flex:1,flexWrap:"wrap"}}>
+                            {pt.fields.map(field=>{
+                              const fieldLabels={duration:"Duration (s)",altitude:"Altitude (m)",distance:"Distance (km)",
+                                angle:"Angle (°)",speed:"Speed (m/s)",windSpeed:"Wind (m/s)"};
+                              return(
+                                <div key={field} style={{display:"flex",alignItems:"center",gap:4}}>
+                                  <span style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{fieldLabels[field]}:</span>
+                                  <input type="number" value={ph[field]||0}
+                                    onChange={e=>{
+                                      const v=parseFloat(e.target.value)||0;
+                                      setCustomPhases(prev=>prev.map((x,j)=>j===i?{...x,[field]:v}:x));
+                                    }}
+                                    style={{width:60,background:C.panel,border:`1px solid ${C.border}`,
+                                      borderRadius:4,color:C.text,fontSize:11,padding:"3px 6px",
+                                      fontFamily:"'DM Mono',monospace",outline:"none"}}
+                                    onFocus={e=>e.target.style.borderColor=pt.col}
+                                    onBlur={e=>e.target.style.borderColor=C.border}/>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Delete */}
+                          <button onClick={()=>setCustomPhases(prev=>prev.filter((_,j)=>j!==i))} type="button"
+                            style={{background:"transparent",border:`1px solid ${C.red}44`,borderRadius:4,
+                              color:C.red,fontSize:10,cursor:"pointer",padding:"3px 8px",fontFamily:"'DM Mono',monospace",flexShrink:0}}>
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {customPhases.length===0&&(
+                      <div style={{textAlign:"center",padding:"32px",color:C.muted,fontFamily:"'DM Mono',monospace",fontSize:12}}>
+                        No phases. Click a phase type above to add one.
+                      </div>
+                    )}
+                  </div>
+                  <div style={{marginTop:12,display:"flex",gap:8}}>
+                    <button onClick={computeCustomMission} type="button"
+                      style={{padding:"10px 24px",background:`linear-gradient(135deg,#065f46,#047857)`,
+                        border:`1px solid #06d6a0`,borderRadius:6,color:"#6ee7b7",fontSize:12,
+                        fontWeight:800,cursor:"pointer",fontFamily:"'DM Mono',monospace",
+                        boxShadow:"0 0 16px #06d6a044"}}>
+                      ▶ Compute Mission
+                    </button>
+                    <button onClick={()=>{setCustomPhases([
+                        {id:uid2(),type:"hover", duration:30, altitude:15, label:"Takeoff Hover"},
+                        {id:uid2(),type:"climb", distance:5,  angle:5,    label:"Climb"},
+                        {id:uid2(),type:"cruise",distance:200,speed:67,   label:"Cruise"},
+                        {id:uid2(),type:"descent",distance:4, angle:4,    label:"Descent"},
+                        {id:uid2(),type:"hover", duration:30, altitude:15,label:"Landing Hover"},
+                        {id:uid2(),type:"reserve",distance:40,speed:47,   label:"Reserve"},
+                      ]);setMbResults(null);}} type="button"
+                      style={{padding:"10px 16px",background:"transparent",border:`1px solid ${C.border}`,
+                        borderRadius:6,color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>
+                      ↺ Reset to Default
+                    </button>
+                  </div>
+                </Panel>
+
+                {/* Results */}
+                {mbResults&&(
+                  <>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                      <KPI label="Total Energy" value={mbResults.totalE} unit="kWh"
+                        color={mbResults.totalE<=R.PackkWh?C.green:C.red}
+                        sub={`Pack: ${R.PackkWh} kWh`}/>
+                      <KPI label="Mission Time" value={`${(mbResults.totalT/60).toFixed(1)} min`} unit=""
+                        color={C.blue} sub={`${mbResults.totalT}s total`}/>
+                      <KPI label="Total Range" value={mbResults.totalRange} unit="km" color={C.teal}/>
+                      <KPI label="Final SoC" value={`${mbResults.finalSoC.toFixed(1)}%`} unit=""
+                        color={mbResults.finalSoC>20?C.green:mbResults.finalSoC>10?C.amber:C.red}
+                        sub={mbResults.feasible?"✓ Feasible":"✗ Battery depleted"}/>
+                    </div>
+
+                    {/* Phase breakdown chart */}
+                    <Panel title="Phase Power & Energy Breakdown" h={280}>
+                      <ResponsiveContainer width="100%" height={235}>
+                        <BarChart data={mbResults.phases.map(ph=>({
+                            name:ph.label,power:ph.power,energy:ph.energy,
+                            fill:PHASE_TYPES[ph.type]?.col||C.muted}))}
+                          margin={{top:5,right:20,left:5,bottom:20}}>
+                          <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                          <XAxis dataKey="name" tick={{fontSize:9,fill:"#94a3b8"}} angle={-20} textAnchor="end"/>
+                          <YAxis yAxisId="left" tick={{fontSize:10,fill:C.amber}}
+                            label={{value:"Power (kW)",angle:-90,position:"insideLeft",fontSize:10,fill:C.amber}}/>
+                          <YAxis yAxisId="right" orientation="right" tick={{fontSize:10,fill:C.teal}}
+                            label={{value:"Energy (kWh)",angle:90,position:"insideRight",fontSize:10,fill:C.teal}}/>
+                          <Tooltip {...TTP}/>
+                          <Legend iconSize={9} wrapperStyle={{fontSize:11}}/>
+                          <Bar yAxisId="left" dataKey="power" name="Power (kW)" radius={[3,3,0,0]} maxBarSize={30}>
+                            {mbResults.phases.map((ph,i)=><Cell key={i} fill={PHASE_TYPES[ph.type]?.col||C.muted}/>)}
+                          </Bar>
+                          <Bar yAxisId="right" dataKey="energy" name="Energy (kWh)" fill={C.teal} radius={[3,3,0,0]} maxBarSize={30} opacity={0.7}/>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Panel>
+
+                    {/* Phase detail table */}
+                    <Panel title="Phase-by-Phase Results">
+                      <div style={{overflowX:"auto"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
+                          <thead><tr style={{background:"#111927"}}>
+                            {["Phase","Type","Power (kW)","Energy (kWh)","Time (s)","Distance (km)","% Total E"].map(h=>(
+                              <th key={h} style={{padding:"5px 8px",color:C.muted,fontSize:9,fontWeight:600,textAlign:"right"}}>{h}</th>
+                            ))}
+                          </tr></thead>
+                          <tbody>
+                            {mbResults.phases.map((ph,i)=>{
+                              const col=PHASE_TYPES[ph.type]?.col||C.muted;
+                              return(
+                                <tr key={i} style={{borderTop:`1px solid ${C.border}`,background:i%2?"#0a0d14":C.bg}}>
+                                  <td style={{padding:"5px 8px",color:col,fontWeight:700}}>{ph.label}</td>
+                                  <td style={{padding:"5px 8px",color:C.muted,textAlign:"right"}}>{PHASE_TYPES[ph.type]?.icon} {PHASE_TYPES[ph.type]?.label}</td>
+                                  <td style={{padding:"5px 8px",color:C.amber,textAlign:"right"}}>{ph.power}</td>
+                                  <td style={{padding:"5px 8px",color:C.teal,textAlign:"right"}}>{ph.energy}</td>
+                                  <td style={{padding:"5px 8px",color:C.blue,textAlign:"right"}}>{ph.time}</td>
+                                  <td style={{padding:"5px 8px",color:C.muted,textAlign:"right"}}>{(ph.distance/1000).toFixed(1)}</td>
+                                  <td style={{padding:"5px 8px",textAlign:"right"}}>
+                                    <div style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                                      <div style={{width:36,height:4,background:C.border,borderRadius:2}}>
+                                        <div style={{width:`${(ph.energy/mbResults.totalE*100).toFixed(0)}%`,height:"100%",background:col,borderRadius:2}}/>
+                                      </div>
+                                      <span style={{color:col}}>{(ph.energy/mbResults.totalE*100).toFixed(1)}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            <tr style={{borderTop:`2px solid ${C.border}`,background:"#111927",fontWeight:700}}>
+                              <td style={{padding:"6px 8px",color:C.text}} colSpan={2}>TOTAL</td>
+                              <td style={{padding:"6px 8px",color:C.amber,textAlign:"right"}}>—</td>
+                              <td style={{padding:"6px 8px",color:C.teal,textAlign:"right"}}>{mbResults.totalE}</td>
+                              <td style={{padding:"6px 8px",color:C.blue,textAlign:"right"}}>{mbResults.totalT}</td>
+                              <td style={{padding:"6px 8px",color:C.muted,textAlign:"right"}}>{mbResults.totalRange}</td>
+                              <td style={{padding:"6px 8px",color:C.muted,textAlign:"right"}}>100%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Panel>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ──── TAB 12: WEATHER & ATMOSPHERE ──── */}
+            {tab===12&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+                {/* Header */}
+                <div style={{background:"linear-gradient(135deg,#071a2f,#0a2a4a)",
+                  border:`1px solid #3b82f644`,borderRadius:10,padding:"16px 20px"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>REAL-TIME ATMOSPHERIC CONDITIONS — OPEN-METEO API</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
+                    <span style={{color:C.blue}}>Weather</span> & Atmosphere Integration
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>
+                    Pulls real weather data for any city using <span style={{color:C.blue,fontWeight:700}}>Open-Meteo API</span> (no API key, completely free).
+                    Calculates how actual temperature, pressure, and density affect hover power, stall speed, cruise Mach, and range vs ISA standard conditions.
+                  </div>
+                </div>
+
+                {/* Search */}
+                <Panel title="Search Any City or Airport">
+                  <div style={{display:"flex",gap:8,marginBottom:12}}>
+                    <input value={wxSearch} onChange={e=>setWxSearch(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&searchCity()}
+                      placeholder="Type any city, e.g. Denver, Dubai, Singapore..."
+                      style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,
+                        color:C.text,fontSize:12,padding:"9px 14px",fontFamily:"'DM Mono',monospace",outline:"none"}}
+                      onFocus={e=>e.target.style.borderColor=C.blue}
+                      onBlur={e=>e.target.style.borderColor=C.border}/>
+                    <button onClick={searchCity} disabled={wxLoading} type="button"
+                      style={{padding:"9px 20px",background:`linear-gradient(135deg,#1e3a5f,#1e40af)`,
+                        border:`1px solid ${C.blue}`,borderRadius:6,color:"#93c5fd",fontSize:12,
+                        fontWeight:700,cursor:wxLoading?"not-allowed":"pointer",fontFamily:"'DM Mono',monospace"}}>
+                      {wxLoading?"⟳ Fetching...":"🔍 Get Weather"}
+                    </button>
+                  </div>
+                  {wxError&&(
+                    <div style={{padding:"8px 12px",background:`${C.red}15`,border:`1px solid ${C.red}44`,
+                      borderRadius:6,color:C.red,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
+                      ✗ {wxError}
+                    </div>
+                  )}
+                  {/* Quick presets */}
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:6,letterSpacing:"0.1em"}}>QUICK ACCESS — REFERENCE CITIES</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {WX_PRESETS.map(city=>(
+                      <button key={city.name} onClick={()=>fetchWeather(city.lat,city.lon,city.name,city.alt)} type="button"
+                        style={{padding:"5px 10px",background:C.bg,border:`1px solid ${C.border}`,
+                          borderRadius:5,cursor:"pointer",fontSize:10,fontFamily:"'DM Mono',monospace",
+                          color:C.text,display:"flex",alignItems:"center",gap:4}}
+                        onMouseEnter={e=>e.currentTarget.style.borderColor=C.blue}
+                        onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                        <span>{city.flag}</span>{city.name}
+                      </button>
+                    ))}
+                  </div>
+                </Panel>
+
+                {/* Weather data display */}
+                {wxData&&(
+                  <>
+                    {/* Location & conditions */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                      <Panel title={`📍 ${wxData.cityName} — Current Conditions`}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                          {[
+                            ["Temperature",`${wxData.T_C.toFixed(1)}°C`,wxData.T_C>35||wxData.T_C<-10?C.red:C.text],
+                            ["Condition",wxData.wx_desc,C.teal],
+                            ["Pressure",`${wxData.P_hPa.toFixed(0)} hPa`,C.muted],
+                            ["Humidity",`${wxData.humidity}%`,C.muted],
+                            ["Wind Speed",`${(wxData.wind_ms*3.6).toFixed(1)} km/h (${wxData.wind_ms.toFixed(1)} m/s)`,C.blue],
+                            ["Wind Dir",`${wxData.wind_dir}°`,C.muted],
+                            ["Elevation",`${wxData.elevation.toFixed(0)} m AMSL`,C.amber],
+                            ["ΔT from ISA",`${wxData.deltaT>0?"+":""}${wxData.deltaT.toFixed(1)}°C`,wxData.deltaT>10||wxData.deltaT<-10?C.red:C.amber],
+                          ].map(([lbl,val,col])=>(
+                            <div key={lbl} style={{background:C.bg,borderRadius:6,padding:"8px 10px",border:`1px solid ${C.border}`}}>
+                              <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:2}}>{lbl}</div>
+                              <div style={{fontSize:11,color:col,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </Panel>
+                      <Panel title="🌡️ Atmosphere vs ISA Standard">
+                        {[
+                          ["Air Density ρ",`${wxData.rho_actual} kg/m³`,"ISA SL: 1.225 kg/m³",wxData.rho_actual>1.15?C.green:wxData.rho_actual>1.0?C.amber:C.red],
+                          ["Density Ratio σ",`${wxData.sigma}`,wxData.sigma>0.95?"Near sea-level":wxData.sigma>0.85?"Moderate alt":"High alt",wxData.sigma>0.95?C.green:wxData.sigma>0.85?C.amber:C.red],
+                          ["Speed of Sound",`${wxData.a_actual.toFixed(1)} m/s`,`ISA SL: 340.3 m/s`,C.teal],
+                        ].map(([lbl,val,sub,col])=>(
+                          <div key={lbl} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                            padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                            <div>
+                              <div style={{fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{lbl}</div>
+                              <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{sub}</div>
+                            </div>
+                            <div style={{fontSize:14,fontWeight:800,color:col,fontFamily:"'DM Mono',monospace"}}>{val}</div>
+                          </div>
+                        ))}
+                        {/* Density ratio bar */}
+                        <div style={{marginTop:10}}>
+                          <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4}}>Density ratio σ = {wxData.sigma.toFixed(3)}</div>
+                          <div style={{height:8,background:C.border,borderRadius:4,overflow:"hidden"}}>
+                            <div style={{width:`${wxData.sigma*100}%`,height:"100%",
+                              background:`linear-gradient(90deg,${C.red},${C.amber},${C.green})`,
+                              borderRadius:4,transition:"width 0.5s"}}/>
+                          </div>
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.dim,marginTop:2,fontFamily:"'DM Mono',monospace"}}>
+                            <span>0 (vacuum)</span><span>0.5</span><span>1.0 (ISA SL)</span>
+                          </div>
+                        </div>
+                      </Panel>
+                    </div>
+
+                    {/* Performance impacts */}
+                    {wxResults&&(
+                      <Panel title={`⚡ Performance Impact vs ISA Standard — at ${wxData.cityName}`}>
+                        <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:12,lineHeight:1.6}}>
+                          Showing how <span style={{color:C.blue}}>actual atmospheric conditions</span> change your aircraft's performance
+                          vs the ISA standard day (T=15°C, P=1013.25 hPa, ρ=1.225 kg/m³) used in the main physics engine.
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+                          {[
+                            {label:"Hover Power",isa:`${R.Phov} kW`,actual:`${wxResults.P_hov_wx} kW`,delta:wxResults.P_hov_delta_pct,unit:"kW",
+                              note:wxResults.P_hov_delta_pct>0?"Lower density → more power needed":"Denser air → less power needed"},
+                            {label:"Cruise Power",isa:`${R.Pcr} kW`,actual:`${wxResults.P_cr_wx} kW`,delta:wxResults.P_cr_delta_pct,unit:"kW",
+                              note:wxResults.P_cr_delta_pct>0?"Less dense → higher cruise power":"Denser air → less cruise power"},
+                            {label:"Stall Speed",isa:`${R.Vstall} m/s`,actual:`${wxResults.V_stall_wx} m/s`,delta:((wxResults.V_stall_wx/R.Vstall-1)*100),unit:"m/s",
+                              note:wxResults.V_stall_wx>R.Vstall?"Higher stall speed — lower density":"Lower stall speed — higher density"},
+                            {label:"Cruise Mach",isa:`M ${R.Mach}`,actual:`M ${wxResults.Mach_wx}`,delta:((wxResults.Mach_wx/R.Mach-1)*100),unit:"",
+                              note:wxResults.Mach_wx>R.Mach?"Warmer air → higher Mach for same TAS":"Cooler air → slightly higher Mach"},
+                            {label:"Ground Speed",isa:`${p.vCruise} m/s (no wind)`,actual:`${wxResults.Vg.toFixed(1)} m/s`,delta:wxResults.range_wind_pct,unit:"m/s",
+                              note:wxResults.headwind_component>0?`Headwind ${wxResults.headwind_component.toFixed(1)} m/s — reduces range`:`Tailwind ${Math.abs(wxResults.headwind_component).toFixed(1)} m/s — boosts range`},
+                            {label:"Air Density",isa:"1.225 kg/m³",actual:`${wxResults.rho_actual} kg/m³`,delta:((wxResults.rho_actual/1.225-1)*100),unit:"kg/m³",
+                              note:`σ = ${wxResults.sigma} — ${wxResults.sigma>1?"denser than ISA":"less dense than ISA"}`},
+                          ].map(({label,isa,actual,delta,note})=>(
+                            <div key={label} style={{background:C.bg,border:`1px solid ${Math.abs(delta)>10?C.amber:C.border}`,
+                              borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${delta>5?C.red:delta<-2?C.green:C.amber}`}}>
+                              <div style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace",marginBottom:6}}>{label}</div>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                                <span style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>ISA: {isa}</span>
+                                <span style={{fontSize:10,color:C.blue,fontFamily:"'DM Mono',monospace",fontWeight:700}}>→ {actual}</span>
+                              </div>
+                              <div style={{fontSize:13,fontWeight:800,fontFamily:"'DM Mono',monospace",
+                                color:delta>5?C.red:delta>2?C.amber:delta<-2?C.green:C.muted,marginBottom:4}}>
+                                {delta>0?"+":""}{delta.toFixed(1)}%
+                              </div>
+                              <div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace",lineHeight:1.4}}>{note}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Summary insight */}
+                        <div style={{padding:"10px 14px",background:`${C.blue}11`,border:`1px solid ${C.blue}33`,
+                          borderRadius:6,fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+                          <strong style={{color:C.blue}}>📊 Summary for {wxData.cityName}:</strong>{" "}
+                          Air density is <strong style={{color:wxResults.sigma>1?C.green:wxResults.sigma<0.9?C.red:C.amber}}>
+                            {wxResults.sigma>1?"higher":"lower"} than ISA</strong> (σ={wxResults.sigma}).
+                          Hover power is <strong style={{color:wxResults.P_hov_delta_pct>5?C.red:C.green}}>
+                            {wxResults.P_hov_delta_pct>0?"+":""}{wxResults.P_hov_delta_pct.toFixed(1)}%</strong> vs standard day.
+                          {Math.abs(wxResults.headwind_component)>2&&(
+                            <span> Wind component: <strong style={{color:wxResults.headwind_component>0?C.red:C.green}}>
+                              {wxResults.headwind_component>0?"headwind":"tailwind"} {Math.abs(wxResults.headwind_component).toFixed(1)} m/s
+                            </strong> — range {wxResults.range_wind_pct>0?"increases":"decreases"} by{" "}
+                            <strong>{Math.abs(wxResults.range_wind_pct).toFixed(1)}%</strong>.</span>
+                          )}
+                        </div>
+                      </Panel>
+                    )}
+                  </>
+                )}
+
+                {!wxData&&!wxLoading&&(
+                  <div style={{textAlign:"center",padding:"48px 0",color:C.muted,fontFamily:"'DM Mono',monospace"}}>
+                    <div style={{fontSize:48,marginBottom:16}}>🌤️</div>
+                    <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8}}>No location selected</div>
+                    <div style={{fontSize:12,color:C.muted}}>Search a city or click a preset above</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ──── TAB 13: OPENVSP EXPORT ──── */}
+            {tab===13&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {/* Header banner */}
                 <div style={{background:"linear-gradient(135deg,#0d1117 0%,#0f172a 100%)",
