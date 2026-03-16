@@ -1384,6 +1384,81 @@ export default function App(){
                   </ResponsiveContainer>
                 </Panel>
 
+                {/* ── Combined Power + Energy vs Time (dual Y-axis) ── */}
+                <Panel title="Power & Energy vs Mission Time — Combined (Dual Axis)">
+                  <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8,paddingLeft:4}}>
+                    <span style={{color:C.amber,fontWeight:700}}>■ Power (kW)</span> on left axis &nbsp;·&nbsp;
+                    <span style={{color:C.green,fontWeight:700}}>■ Phase Energy (kWh)</span> on right axis — both plotted step-wise per phase, matching the MATLAB reference.
+                  </div>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <ComposedChart
+                      data={(()=>{
+                        // Build step data: for each phase show power and energy as step-wise blocks
+                        // matching the MATLAB "Energy vs Time" shape exactly
+                        const phases=[
+                          {label:"T/O",   tStart:R.tPhases[0], tEnd:R.tPhases[1], power:R.Phov, energy:R.Eto},
+                          {label:"Climb", tStart:R.tPhases[1], tEnd:R.tPhases[2], power:R.Pcl,  energy:R.Ecl},
+                          {label:"Cruise",tStart:R.tPhases[2], tEnd:R.tPhases[3], power:R.Pcr,  energy:R.Ecr},
+                          {label:"Desc",  tStart:R.tPhases[3], tEnd:R.tPhases[4], power:R.Pdc,  energy:R.Edc},
+                          {label:"Land",  tStart:R.tPhases[4], tEnd:R.tPhases[5], power:R.Phov, energy:R.Eld},
+                          {label:"Res",   tStart:R.tPhases[5], tEnd:R.tPhases[6], power:R.Pres, energy:R.Eres},
+                        ];
+                        // Build array with step transitions: each phase generates 2 points (start, end)
+                        const pts=[];
+                        phases.forEach(ph=>{
+                          pts.push({t:+ph.tStart.toFixed(0), P:+ph.power.toFixed(2), E:+ph.energy.toFixed(3), label:ph.label});
+                          pts.push({t:+ph.tEnd.toFixed(0),   P:+ph.power.toFixed(2), E:+ph.energy.toFixed(3), label:ph.label});
+                        });
+                        return pts;
+                      })()}
+                      margin={{top:10,right:60,left:10,bottom:20}}>
+                      <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}}
+                        label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      {/* Left Y — Power */}
+                      <YAxis yAxisId="left" tick={{fontSize:10,fill:C.amber}}
+                        label={{value:"Power (kW)",angle:-90,position:"insideLeft",offset:14,fontSize:11,fill:C.amber}}/>
+                      {/* Right Y — Energy */}
+                      <YAxis yAxisId="right" orientation="right" tick={{fontSize:10,fill:C.green}}
+                        label={{value:"Energy (kWh)",angle:90,position:"insideRight",offset:14,fontSize:11,fill:C.green}}/>
+                      <Tooltip {...TTP}
+                        formatter={(v,n)=>n==="Power (kW)"?[`${v} kW`,n]:[`${v} kWh`,n]}
+                        labelFormatter={t=>`t = ${t} s`}/>
+                      <Legend iconSize={10} wrapperStyle={{fontSize:11,color:"#94a3b8",paddingTop:4}}/>
+                      {/* Phase reference lines */}
+                      {R.tPhases.slice(1,-1).map((tp,i)=>(
+                        <ReferenceLine key={i} x={Math.round(tp)} yAxisId="left"
+                          stroke={PHC[i]} strokeDasharray="4 3" strokeWidth={1.5}
+                          label={{value:["Climb","Cruise","Desc","Land","Res"][i],fill:PHC[i],fontSize:9,position:"top"}}/>
+                      ))}
+                      {/* Power line — amber, step, left axis */}
+                      <Line yAxisId="left" type="stepAfter" dataKey="P" stroke={C.amber} strokeWidth={2.5}
+                        dot={false} name="Power (kW)" connectNulls={false}/>
+                      {/* Energy line — green, step, right axis */}
+                      <Line yAxisId="right" type="stepAfter" dataKey="E" stroke={C.green} strokeWidth={2.5}
+                        dot={false} name="Energy (kWh)" connectNulls={false}
+                        strokeDasharray="0"/>
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                  <div style={{display:"flex",gap:20,marginTop:8,padding:"8px 12px",background:C.bg,borderRadius:6,border:`1px solid ${C.border}`,flexWrap:"wrap"}}>
+                    {[
+                      ["T/O",   R.Phov, R.Eto,  PHC[0]],
+                      ["Climb", R.Pcl,  R.Ecl,  PHC[1]],
+                      ["Cruise",R.Pcr,  R.Ecr,  PHC[2]],
+                      ["Desc",  R.Pdc,  R.Edc,  PHC[3]],
+                      ["Land",  R.Phov, R.Eld,  PHC[4]],
+                      ["Res",   R.Pres, R.Eres, PHC[5]],
+                    ].map(([lbl,pw,e,col])=>(
+                      <div key={lbl} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:col}}/>
+                        <span style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{lbl}</span>
+                        <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{pw} kW</span>
+                        <span style={{fontSize:10,color:C.green,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{e} kWh</span>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+
                 {/* Phase Power vs Phase Energy vs Phase Time — NEW grouped bar chart */}
                 <Panel title="Phase Comparison — Power (kW) · Energy (kWh) · Duration (s)">
                   <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8,paddingLeft:4}}>
