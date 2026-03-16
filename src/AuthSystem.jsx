@@ -7,22 +7,12 @@ import { useState, useEffect, useRef } from "react";
    Forgot: enter email → OTP → reset password
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Theme system — reads from App's global C if available, else dark fallback ── */
-const DARK_C = {
+const C = {
   bg:"#07090f", panel:"#0d1117", border:"#1c2333",
   amber:"#f59e0b", teal:"#14b8a6", blue:"#3b82f6",
   red:"#ef4444", green:"#22c55e", dim:"#4b5563",
   text:"#e2e8f0", muted:"#64748b", purple:"#8b5cf6",
 };
-const LIGHT_C = {
-  bg:"#f8fafc", panel:"#ffffff", border:"#e2e8f0",
-  amber:"#d97706", teal:"#0d9488", blue:"#2563eb",
-  red:"#dc2626", green:"#16a34a", dim:"#9ca3af",
-  text:"#0f172a", muted:"#64748b", purple:"#7c3aed",
-};
-/* C is set by the exported setAuthTheme() or falls back to dark */
-let C = DARK_C;
-export function setAuthTheme(isDark){ C = isDark ? DARK_C : LIGHT_C; }
 
 /* ── helpers ── */
 const uid = () => Math.random().toString(36).slice(2,10);
@@ -248,7 +238,7 @@ function Input({label,type="text",value,onChange,placeholder,autoFocus,error,hin
           type={isP&&show?"text":type} value={value}
           onChange={e=>onChange(e.target.value)}
           placeholder={placeholder} autoFocus={autoFocus}
-          style={{width:"100%",boxSizing:"border-box",background:C.bg,
+          style={{width:"100%",boxSizing:"border-box",background:"#0a0d14",
             border:`1px solid ${error?C.red:C.border}`,borderRadius:6,color:C.text,
             fontSize:13,padding:"10px 40px 10px 12px",fontFamily:"'DM Mono',monospace",outline:"none"}}
           onFocus={e=>e.target.style.borderColor=C.amber}
@@ -376,7 +366,7 @@ function OTPInput({value,onChange}){
           onKeyDown={e=>handleKey(i,e)}
           onPaste={handlePaste}
           style={{width:46,height:54,textAlign:"center",fontSize:24,fontWeight:700,
-            fontFamily:"'DM Mono',monospace",background:C.panel,
+            fontFamily:"'DM Mono',monospace",background:"#0a0d14",
             border:`2px solid ${digits[i]?C.amber:C.border}`,
             borderRadius:8,color:C.amber,outline:"none"}}
           onFocus={e=>e.target.style.borderColor=C.amber}
@@ -825,7 +815,7 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
             {flow==="login"&&(
               <>
                 {showGoogleInput?(
-                  <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+                  <div style={{background:"#0a0d14",border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <GoogleSVG/>
                       <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>Continue with Google</span>
@@ -872,7 +862,7 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
             {flow==="register"&&(
               <>
                 {showGoogleInput?(
-                  <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+                  <div style={{background:"#0a0d14",border:`1px solid ${C.border}`,borderRadius:8,padding:"14px 16px",marginBottom:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <GoogleSVG/>
                       <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'DM Mono',monospace"}}>Sign up with Google</span>
@@ -900,7 +890,7 @@ function AuthModal({onClose, onAuth, defaultFlow="login"}){
                 <PasswordStrength password={regPw}/>
                 <Input label="Confirm Password" type="password" value={regPw2} onChange={setRegPw2} placeholder="Repeat password"/>
                 <div style={{fontSize:9,color:C.dim,fontFamily:"'DM Mono',monospace",marginBottom:14,lineHeight:1.7,
-                  background:C.bg,padding:"8px 10px",borderRadius:6,border:`1px solid ${C.border}`}}>
+                  background:"#0a0d14",padding:"8px 10px",borderRadius:6,border:`1px solid ${C.border}`}}>
                   Your username will be auto-generated as: <span style={{color:C.amber}}>
                     {firstName&&lastName?`${firstName.toLowerCase()}${lastName.toLowerCase()}`.replace(/\s/g,""):"firstnamelastname"}
                   </span>
@@ -1224,7 +1214,7 @@ function ProfileModal({user,onClose,onUpdate}){
           <div key={label}>
             <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
             <input value={value} onChange={e=>set(e.target.value)} placeholder={placeholder} disabled={disabled} type="text"
-              style={{width:"100%",boxSizing:"border-box",background:disabled?C.bg:C.bg,
+              style={{width:"100%",boxSizing:"border-box",background:disabled?"#0a0d14":C.bg,
                 border:`1px solid ${disabled?C.border+"88":C.border}`,borderRadius:6,
                 color:disabled?C.muted:C.text,fontSize:12,padding:"9px 12px",
                 fontFamily:"'DM Mono',monospace",outline:"none",opacity:disabled?0.6:1}}
@@ -1260,7 +1250,7 @@ function ProfileModal({user,onClose,onUpdate}){
               <div key={lbl} style={{marginBottom:10}}>
                 <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,textTransform:"uppercase"}}>{lbl}</div>
                 <input type="password" value={val} onChange={e=>setVal(e.target.value)} placeholder="••••••••"
-                  style={{width:"100%",boxSizing:"border-box",background:C.bg,
+                  style={{width:"100%",boxSizing:"border-box",background:"#0a0d14",
                     border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,
                     padding:"8px 12px",fontFamily:"'DM Mono',monospace",outline:"none"}}
                   onFocus={e=>e.target.style.borderColor=C.amber}

@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { AuthModal, AuthGate, UserHeaderBar, getSession, saveSession, clearSession, addNotif, saveDesign, addReport, setAuthTheme } from "./AuthSystem";
-import { ShareDesignButton, LeaderboardPanel, CollabPanel, PublicDesignBanner } from "./CommunityFeatures";
+import { AuthModal, AuthGate, UserHeaderBar, getSession, saveSession, clearSession, addNotif, saveDesign, addReport } from "./AuthSystem";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, RadarChart, Radar,
   ComposedChart,
@@ -706,7 +705,7 @@ function generateReport(p, R, branding={}) {
     `<tr><td class="td-label">${label}</td><td class="td-formula">${formula}</td><td class="td-value">${value}</td><td class="td-unit">${unit}</td></tr>`;
 
   const table = (headers, rows) =>
-    `<table class="data-table"><thead><tr>${headers.map(hdr=>`<th>${hdr}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
+    `<table class="data-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
 
   const check = (ok, label, val) =>
     `<tr class="${ok?"ok":"fail"}"><td>${ok?"✓":"✗"}</td><td>${label}</td><td>${val}</td></tr>`;
@@ -1238,33 +1237,6 @@ function generateReport(p, R, branding={}) {
 <body>
 ${cover}
 ${s1}${s2}${sd1}${sd2}${s3}${sd3}${sd4}${s4}${sd5}${s5}${sd6}${s6}${sd7}${s7}${sd8}${s8}${sd9}${s9}${s10}
-<section style="padding:28px 56px;page-break-inside:avoid;border-bottom:1px solid #e5e7eb">
-  <h2 style="font-size:14pt;font-weight:800;color:#0f172a;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #8b5cf6;">
-    Community Design Benchmarks
-  </h2>
-  <p style="color:#374151;margin-bottom:10px;font-size:9.5pt">
-    This section benchmarks the current design against community targets and aeronautical best-practice ranges for UAM eVTOL aircraft. Use this to gauge where your design sits relative to published standards.
-  </p>
-  <table class="data-table">
-    <thead><tr><th>Metric</th><th>This Design</th><th>Community Target</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr><td class="td-label">Actual L/D</td><td class="td-value">${n(R.LDact,2)}</td><td class="td-value">≥ 12.0</td><td style="color:${R.LDact>=12?"#16a34a":"#dc2626"};font-weight:700">${R.LDact>=12?"✓ Above target":"✗ Below target"}</td></tr>
-      <tr style="background:#f8faff"><td class="td-label">MTOW / Payload ratio</td><td class="td-value">${n(R.MTOW/p.payload,2)}</td><td class="td-value">≤ 6.0</td><td style="color:${R.MTOW/p.payload<=6?"#16a34a":"#dc2626"};font-weight:700">${R.MTOW/p.payload<=6?"✓ Efficient":"✗ Review weight"}</td></tr>
-      <tr><td class="td-label">Energy / Range (Wh/km)</td><td class="td-value">${n(R.Etot*1000/p.range,1)} Wh/km</td><td class="td-value">≤ 400 Wh/km</td><td style="color:${R.Etot*1000/p.range<=400?"#16a34a":"#dc2626"};font-weight:700">${R.Etot*1000/p.range<=400?"✓ Efficient":"✗ High consumption"}</td></tr>
-      <tr style="background:#f8faff"><td class="td-label">Battery pack energy density</td><td class="td-value">${n(R.SEDpack,1)} Wh/kg</td><td class="td-value">≥ 150 Wh/kg</td><td style="color:${R.SEDpack>=150?"#16a34a":"#d97706"};font-weight:700">${R.SEDpack>=150?"✓ Good":"⚠ Marginal"}</td></tr>
-      <tr><td class="td-label">Static Margin (V-tail corrected)</td><td class="td-value">${n(R.SM_vt*100,1)}% MAC</td><td class="td-value">5–25% MAC</td><td style="color:${R.SM_vt>=0.05&&R.SM_vt<=0.25?"#16a34a":"#dc2626"};font-weight:700">${R.SM_vt>=0.05&&R.SM_vt<=0.25?"✓ Stable":"✗ Review"}</td></tr>
-      <tr style="background:#f8faff"><td class="td-label">Hover power / MTOW (W/kg)</td><td class="td-value">${n(R.Phov*1000/R.MTOW,1)} W/kg</td><td class="td-value">≤ 220 W/kg</td><td style="color:${R.Phov*1000/R.MTOW<=220?"#16a34a":"#d97706"};font-weight:700">${R.Phov*1000/R.MTOW<=220?"✓ Good":"⚠ High hover loading"}</td></tr>
-      <tr><td class="td-label">Tip Mach number</td><td class="td-value">${n(R.TipMach,4)}</td><td class="td-value">≤ 0.70</td><td style="color:${R.TipMach<0.70?"#16a34a":"#dc2626"};font-weight:700">${R.TipMach<0.70?"✓ Subsonic tips":"✗ Compressibility risk"}</td></tr>
-      <tr style="background:#f8faff"><td class="td-label">Noise at 150m (A-weighted)</td><td class="td-value">${n(R.dBA_150m,1)} dBA</td><td class="td-value">≤ 65 dBA (EASA UAM)</td><td style="color:${R.dBA_150m<=65?"#16a34a":R.dBA_150m<=75?"#d97706":"#dc2626"};font-weight:700">${R.dBA_150m<=65?"✓ Meets EASA target":R.dBA_150m<=75?"⚠ Above EASA target":"✗ Exceeds limit"}</td></tr>
-    </tbody>
-  </table>
-  <p style="font-size:8.5pt;color:#64748b;margin-top:8px;font-style:italic">
-    Share this design to the community leaderboard using the 🔗 Share Design button in the eVTOL Sizer app. Your design receives a unique public URL and appears in the Best L/D, Lowest MTOW, Best Efficiency, and Lowest Energy rankings.
-  </p>
-  <p style="font-size:8.5pt;color:#64748b;font-style:italic">
-    Share URL format: https://evtol-sizer.app?design=&lt;shareId&gt; — anyone with the link can view the design in read-only mode.
-  </p>
-</section>
 <section style="background:#0f172a;color:#94a3b8;text-align:center;padding:24px;font-size:8pt">
   Generated by eVTOL Sizer v2.0 — Wright State University — ${now}<br>
   All calculations based on Raymer (Aircraft Design: A Conceptual Approach) and MATLAB eVTOL_Full_Analysis_v2.m
@@ -1312,12 +1284,12 @@ function Slider({label,unit,value,min,max,step,onChange,note}){
         <div style={{display:"flex",alignItems:"center",gap:4}}>
           <input type="number" value={value} step={step} min={min} max={max}
             onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v))onChange(Math.max(min,Math.min(max,v)));}}
-            style={{width:62,background:C.panel,border:`1px solid ${C.border}`,borderRadius:3,color:C.amber,
+            style={{width:62,background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:3,color:C.amber,
               fontSize:11,textAlign:"right",padding:"2px 5px",fontFamily:"'DM Mono',monospace",outline:"none"}}/>
           <span style={{fontSize:9,color:C.dim,minWidth:26,fontFamily:"'DM Mono',monospace"}}>{unit}</span>
         </div>
       </div>
-      <div style={{position:"relative",height:3,background:C.border,borderRadius:2}}>
+      <div style={{position:"relative",height:3,background:"#1c2333",borderRadius:2}}>
         <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${pct}%`,
           background:`linear-gradient(90deg,${C.teal},${C.amber})`,borderRadius:2,transition:"width 0.1s"}}/>
         <input type="range" value={value} min={min} max={max} step={step}
@@ -1343,9 +1315,9 @@ function KPI({label,value,unit,sub,color}){
   );
 }
 
-function Panel({title,children,ht}){
+function Panel({title,children,h}){
   return(
-    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",height:ht||"auto"}}>
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",height:h||"auto"}}>
       <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",fontFamily:"'DM Mono',monospace",
         marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>{title}</div>
       {children}
@@ -1360,7 +1332,7 @@ function Acc({title,icon,children}){
       <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",
         display:"flex",alignItems:"center",gap:7,padding:"4px 0"}}>
         <span style={{fontSize:12}}>{icon}</span>
-        <span style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontFamily:"'DM Mono',monospace"}}>{title}</span>
+        <span style={{fontSize:9,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",fontFamily:"'DM Mono',monospace"}}>{title}</span>
         <span style={{marginLeft:"auto",color:C.dim,fontSize:10}}>{open?"▾":"▸"}</span>
       </button>
       {open&&<div style={{paddingTop:4}}>{children}</div>}
@@ -1368,9 +1340,9 @@ function Acc({title,icon,children}){
   );
 }
 
-const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","Noise","Cost","Mission Builder","Weather & Atmos","OpenVSP","Community","Collaboration"];
-const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🔊","💰","🗺️","🌤️","🛩️","🌐","👥"];
-/* TTP is defined inside App() so it reads the current C theme */
+const TABS=["Overview","Mission","Wing & Aero","Propulsion","Battery","Performance","Stability","V-Tail","Convergence","Monte Carlo","Certification","Noise","Cost","Mission Builder","Weather & Atmos","OpenVSP"];
+const TABI=["⬛","🛫","✈️","🔧","🔋","📈","⚖️","🦋","🔄","🎲","📋","🔊","💰","🗺️","🌤️","🛩️"];
+const TTP={contentStyle:{background:"#131c2e",border:"1px solid #2a3a5c",borderRadius:6,fontSize:12,color:"#e2e8f0",boxShadow:"0 4px 20px rgba(0,0,0,0.8)"},labelStyle:{color:"#94a3b8",fontSize:12,fontWeight:600},itemStyle:{color:"#e2e8f0",fontSize:12}};
 
 /* ═══════════════════════════════════
    APP
@@ -1443,20 +1415,6 @@ export default function App(){
 
   // Update global C on every render based on theme
   C = darkMode ? DARK : LIGHT;
-  // Sync theme to AuthSystem so modal inputs also update
-  setAuthTheme(darkMode);
-
-  // Dynamic tooltip style (reads current C — correct for both themes)
-  const TTP = {
-    contentStyle:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,
-      color:C.text,boxShadow:"0 4px 20px rgba(0,0,0,0.4)",padding:"8px 12px"},
-    labelStyle:{color:C.muted,fontSize:12,fontWeight:600},
-    itemStyle:{color:C.text,fontSize:12},
-  };
-
-  // URL param: ?design=shareId for shared design loading
-  const [sharedDesignId] = useState(()=>new URLSearchParams(window.location.search).get("design")||"");
-  const [sharedSessionId] = useState(()=>new URLSearchParams(window.location.search).get("session")||"");
 
   const handleAuth=(session)=>{
     saveSession(session);
@@ -1534,11 +1492,8 @@ export default function App(){
     if(user) addNotif(user.id,{title:"CSV Exported",body:"Results downloaded as spreadsheet.",type:"success"});
   };
 
-  /* ── Mission Builder — compute custom mission ──
-     BUG FIX: wrapped in useCallback so useEffect dependency is stable.
-     Auto-triggers whenever customPhases or R changes — no manual "Compute" needed. */
-  const computeCustomMission=useCallback(()=>{
-    if(!R) return;
+  /* ── Mission Builder — compute custom mission ── */
+  const computeCustomMission=()=>{
     const g0=9.81,rhoMSL=1.225,T0=288.15,Rgas=287,GAM=1.4,L=0.0065;
     const MTOW=R.MTOW, W=MTOW*g0;
     let totalE=0,totalT=0,totalDist=0,phaseResults=[];
@@ -1565,6 +1520,7 @@ export default function App(){
         }
         case"descent":{
           const ang=(ph.angle||4)*Math.PI/180;
+          const desLD=p.LD;
           const Vdc=p.rateOfClimb/Math.sin(ang);
           const LDcl=p.LD*(1-0.13);
           power=Math.max(0,(W/p.etaSys)*(-p.rateOfClimb+Vdc/LDcl)/1000);
@@ -1599,10 +1555,7 @@ export default function App(){
     setMbResults({phases:phaseResults,totalE:+totalE.toFixed(3),totalT:+totalT.toFixed(0),
       totalRange:+totalRange.toFixed(1),finalSoC:+finalSoC.toFixed(1),
       feasible:finalSoC>0&&totalE<=PackkWh});
-  },[customPhases,R,p]);
-
-  /* Auto-recompute mission whenever phases or aircraft params change */
-  useEffect(()=>{ computeCustomMission(); },[computeCustomMission]);
+  };
 
   /* ── Weather fetch — Open-Meteo (no API key needed) ── */
   const fetchWeather=async(lat,lon,cityName,elevation=0)=>{
@@ -1839,11 +1792,7 @@ export default function App(){
         .recharts-tooltip-wrapper .recharts-tooltip-item-value{color:${C.amber} !important;font-weight:700 !important}
         .recharts-tooltip-wrapper .recharts-tooltip-item-separator{color:${C.dim} !important}
         .recharts-legend-item-text{color:${C.muted} !important;font-size:11px !important}
-        .recharts-cartesian-axis-tick text{fill:${C.muted} !important}
-        .recharts-label{fill:${C.muted} !important}
-        .recharts-cartesian-grid line{stroke:${C.border} !important}
         span,div,td,th{color:inherit}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
       `}</style>
 
       {/* PDF BRANDING POPUP */}
@@ -2007,9 +1956,6 @@ export default function App(){
             </AuthGate>
           )}
 
-          {/* Share Design — community leaderboard */}
-          {R&&<ShareDesignButton user={user} params={p} results={R} C={C}/>}
-
           <UserHeaderBar user={user} onSignOut={handleSignOut} onSignIn={()=>setShowAuthModal(true)} onUpdate={handleUpdate}/>
           {showAuthModal&&<AuthModal onClose={()=>setShowAuthModal(false)} onAuth={handleAuth}/>}
         </div>
@@ -2092,10 +2038,6 @@ export default function App(){
           </div>
 
           <div style={{flex:1,overflowY:"auto",padding:"14px 18px 28px",background:C.bg}}>
-            {/* Shared design banner — shown when ?design= is in URL */}
-            {sharedDesignId&&(
-              <PublicDesignBanner shareId={sharedDesignId} onLoad={params=>setP(prev=>({...prev,...params}))} C={C}/>
-            )}
             {!R&&<div style={{color:C.red,fontFamily:"'DM Mono',monospace",padding:20}}>Calculation error — adjust inputs.</div>}
             {R&&<>
 
@@ -2115,25 +2057,25 @@ export default function App(){
                   <KPI label="Mach" value={R.Mach} unit="" color={R.Mach<0.35?C.green:C.amber} sub={`Re ${(R.Re_/1e6).toFixed(2)}×10⁶`}/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Power per Phase (kW)" ht={255}>
+                  <Panel title="Power per Phase (kW)" h={255}>
                     <ResponsiveContainer width="100%" height={205}>
                       <BarChart data={[{ph:"T/O",v:R.Phov},{ph:"Climb",v:R.Pcl},{ph:"Cruise",v:R.Pcr},{ph:"Descent",v:R.Pdc},{ph:"Land",v:R.Phov},{ph:"Reserve",v:R.Pres}]}
                         margin={{top:5,right:8,left:-15,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="ph" tick={{fontSize:11,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}}/>
+                        <XAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Bar dataKey="v" radius={[3,3,0,0]} name="kW">{PHC.map((c,i)=><Cell key={i} fill={c}/>)}</Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Energy per Phase (kWh)" ht={255}>
+                  <Panel title="Energy per Phase (kWh)" h={255}>
                     <ResponsiveContainer width="100%" height={205}>
                       <BarChart data={[{ph:"T/O",v:R.Eto},{ph:"Climb",v:R.Ecl},{ph:"Cruise",v:R.Ecr},{ph:"Descent",v:R.Edc},{ph:"Land",v:R.Eld},{ph:"Reserve",v:R.Eres}]}
                         margin={{top:5,right:8,left:-15,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="ph" tick={{fontSize:11,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}}/>
+                        <XAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Bar dataKey="v" radius={[3,3,0,0]} name="kWh">{PHC.map((c,i)=><Cell key={i} fill={c}/>)}</Bar>
                       </BarChart>
@@ -2143,9 +2085,9 @@ export default function App(){
                 <Panel title="Mission Timeline — Final Converged Values">
                   <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
-                      <thead><tr style={{background:C.panel}}>
-                        {["Phase","Time (s)","Power (kW)","Energy (kWh)","Velocity (m/s)"].map(hdr=>(
-                          <th key={hdr} style={{padding:"5px 12px",textAlign:"left",color:C.muted,fontFamily:"'DM Mono',monospace",fontSize:8,fontWeight:600,letterSpacing:"0.05em"}}>{hdr}</th>
+                      <thead><tr style={{background:"#111927"}}>
+                        {["Phase","Time (s)","Power (kW)","Energy (kWh)","Velocity (m/s)"].map(h=>(
+                          <th key={h} style={{padding:"5px 12px",textAlign:"left",color:C.muted,fontFamily:"'DM Mono',monospace",fontSize:8,fontWeight:600,letterSpacing:"0.05em"}}>{h}</th>
                         ))}
                       </tr></thead>
                       <tbody>
@@ -2193,15 +2135,15 @@ export default function App(){
                 </div>
 
                 {/* Power vs Time */}
-                <Panel title="Power vs Mission Time (kW)" ht={270}>
+                <Panel title="Power vs Mission Time (kW)" h={270}>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={R.powerSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={C.amber} stopOpacity={0.4}/><stop offset="95%" stopColor={C.amber} stopOpacity={0.02}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:10,fill:C.muted}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:10,fill:C.muted}} label={{value:"Power (kW)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:C.muted}}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Power (kW)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`${v} kW`,n]}/>
                       <Area type="stepAfter" dataKey="P" stroke={C.amber} strokeWidth={2.5} fill="url(#pg)" dot={false} name="Power (kW)"/>
                       {R.tPhases.slice(1,-1).map((tp,i)=>(
@@ -2213,15 +2155,15 @@ export default function App(){
                 </Panel>
 
                 {/* Energy vs Time — NEW */}
-                <Panel title="Cumulative Energy Consumed vs Mission Time (kWh)" ht={270}>
+                <Panel title="Cumulative Energy Consumed vs Mission Time (kWh)" h={270}>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={R.energySteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={C.teal} stopOpacity={0.45}/><stop offset="95%" stopColor={C.teal} stopOpacity={0.02}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:10,fill:C.muted}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:10,fill:C.muted}} label={{value:"Energy (kWh)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:C.muted}}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Energy (kWh)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`${v} kWh`,n]}/>
                       <Area type="monotone" dataKey="E" stroke={C.teal} strokeWidth={2.5} fill="url(#eg)" dot={false} name="Cumulative Energy (kWh)"/>
                       <ReferenceLine y={R.Etot} stroke={C.green} strokeDasharray="5 3"
@@ -2237,15 +2179,15 @@ export default function App(){
                 </Panel>
 
                 {/* Velocity vs Time */}
-                <Panel title="Velocity vs Mission Time (m/s)" ht={230}>
+                <Panel title="Velocity vs Mission Time (m/s)" h={230}>
                   <ResponsiveContainer width="100%" height={185}>
                     <AreaChart data={R.velSteps} margin={{top:5,right:16,left:-5,bottom:16}}>
                       <defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={C.blue} stopOpacity={0.4}/><stop offset="95%" stopColor={C.blue} stopOpacity={0.02}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:10,fill:C.muted}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:10,fill:C.muted}} label={{value:"Speed (m/s)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:C.muted}}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"Speed (m/s)",angle:-90,position:"insideLeft",offset:10,fontSize:11,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`${v} m/s`,n]}/>
                       <Area type="stepAfter" dataKey="V" stroke={C.blue} strokeWidth={2.5} fill="url(#vg)" dot={false} name="Speed (m/s)"/>
                       <ReferenceLine y={p.vCruise} stroke={C.amber} strokeDasharray="4 3"
@@ -2286,8 +2228,8 @@ export default function App(){
                       })()}
                       margin={{top:10,right:60,left:10,bottom:20}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:10,fill:C.muted}}
-                        label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
+                      <XAxis dataKey="t" tick={{fontSize:10,fill:"#94a3b8"}}
+                        label={{value:"Time (s)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
                       {/* Left Y — Power */}
                       <YAxis yAxisId="left" tick={{fontSize:10,fill:C.amber}}
                         label={{value:"Power (kW)",angle:-90,position:"insideLeft",offset:14,fontSize:11,fill:C.amber}}/>
@@ -2297,7 +2239,7 @@ export default function App(){
                       <Tooltip {...TTP}
                         formatter={(v,n)=>n==="Power (kW)"?[`${v} kW`,n]:[`${v} kWh`,n]}
                         labelFormatter={t=>`t = ${t} s`}/>
-                      <Legend iconSize={10} wrapperStyle={{fontSize:11,color:C.muted,paddingTop:4}}/>
+                      <Legend iconSize={10} wrapperStyle={{fontSize:11,color:"#94a3b8",paddingTop:4}}/>
                       {/* Phase reference lines */}
                       {R.tPhases.slice(1,-1).map((tp,i)=>(
                         <ReferenceLine key={i} x={Math.round(tp)} yAxisId="left"
@@ -2350,10 +2292,10 @@ export default function App(){
                       ]}
                       margin={{top:5,right:20,left:-10,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="ph" tick={{fontSize:11,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:10,fill:C.muted}} label={{value:"% of max",angle:-90,position:"insideLeft",offset:14,fontSize:11,fill:C.muted}} domain={[0,110]}/>
+                      <XAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:10,fill:"#94a3b8"}} label={{value:"% of max",angle:-90,position:"insideLeft",offset:14,fontSize:11,fill:"#94a3b8"}} domain={[0,110]}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
-                      <Legend iconSize={9} wrapperStyle={{fontSize:11,color:C.muted}}/>
+                      <Legend iconSize={9} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                       <Bar dataKey="power" name="Power (% of peak)" fill={C.amber} radius={[3,3,0,0]} maxBarSize={28}/>
                       <Bar dataKey="energy" name="Energy (% of total)" fill={C.teal} radius={[3,3,0,0]} maxBarSize={28}/>
                       <Bar dataKey="time" name="Duration (% of total)" fill={C.blue} radius={[3,3,0,0]} maxBarSize={28}/>
@@ -2364,10 +2306,10 @@ export default function App(){
                   <div style={{overflowX:"auto",marginTop:12}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                       <thead>
-                        <tr style={{background:C.panel}}>
-                          {["Phase","Power (kW)","Energy (kWh)","Duration (s)","% Total E","% Total Time"].map(hdr=>(
-                            <th key={hdr} style={{padding:"5px 10px",textAlign:"right",color:C.muted,fontSize:8,fontWeight:600,letterSpacing:"0.05em",
-                              textTransform:"uppercase",":first-child":{textAlign:"left"}}}>{hdr}</th>
+                        <tr style={{background:"#111927"}}>
+                          {["Phase","Power (kW)","Energy (kWh)","Duration (s)","% Total E","% Total Time"].map(h=>(
+                            <th key={h} style={{padding:"5px 10px",textAlign:"right",color:C.muted,fontSize:8,fontWeight:600,letterSpacing:"0.05em",
+                              textTransform:"uppercase",":first-child":{textAlign:"left"}}}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -2404,7 +2346,7 @@ export default function App(){
                           </tr>
                         ))}
                         {/* Totals row */}
-                        <tr style={{borderTop:`2px solid ${C.border}`,background:C.panel}}>
+                        <tr style={{borderTop:`2px solid ${C.border}`,background:"#111927"}}>
                           <td style={{padding:"6px 10px",color:C.text,fontWeight:700}}>TOTAL</td>
                           <td style={{padding:"6px 10px",color:C.amber,textAlign:"right",fontWeight:700}}>—</td>
                           <td style={{padding:"6px 10px",color:C.teal,textAlign:"right",fontWeight:700}}>{R.Etot}</td>
@@ -2419,7 +2361,7 @@ export default function App(){
 
                 {/* Phase Duration + Energy Radar */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Phase Duration (s)" ht={240}>
+                  <Panel title="Phase Duration (s)" h={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <PieChart>
                         <Pie data={[{n:"T/O",v:R.tto},{n:"Climb",v:R.tcl},{n:"Cruise",v:R.tcr},{n:"Descent",v:R.tdc},{n:"Land",v:R.tld},{n:"Reserve",v:R.tres}]}
@@ -2427,18 +2369,18 @@ export default function App(){
                           {PHC.map((c,i)=><Cell key={i} fill={c}/>)}
                         </Pie>
                         <Tooltip {...TTP} formatter={(v)=>[`${v} s`,"Duration"]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:C.muted}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Energy per Phase — Radar (kWh)" ht={240}>
+                  <Panel title="Energy per Phase — Radar (kWh)" h={240}>
                     <ResponsiveContainer width="100%" height={195}>
                       <RadarChart data={[{ph:"T/O",E:R.Eto},{ph:"Climb",E:R.Ecl},{ph:"Cruise",E:R.Ecr},{ph:"Desc",E:R.Edc},{ph:"Land",E:R.Eld},{ph:"Res",E:R.Eres}]}>
                         <PolarGrid stroke={C.border}/>
-                        <PolarAngleAxis dataKey="ph" tick={{fontSize:11,fill:C.muted}}/>
+                        <PolarAngleAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Radar dataKey="E" stroke={C.teal} fill={C.teal} fillOpacity={0.25} name="Energy (kWh)"/>
                         <Tooltip {...TTP} formatter={(v)=>[`${v} kWh`,"Energy"]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:C.muted}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                       </RadarChart>
                     </ResponsiveContainer>
                   </Panel>
@@ -2458,18 +2400,18 @@ export default function App(){
                   <KPI label="Wing Loading" value={R.WL} unit="N/m²"/><KPI label="Reynolds ×10⁶" value={(R.Re_/1e6).toFixed(2)} unit=""/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="CD₀ Breakdown (Raymer Buildup)" ht={265}>
+                  <Panel title="CD₀ Breakdown (Raymer Buildup)" h={265}>
                     <ResponsiveContainer width="100%" height={215}>
                       <PieChart>
                         <Pie data={R.dragComp} dataKey="val" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={85} paddingAngle={3}>
                           {["#3b82f6","#ef4444","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4"].map((c,i)=><Cell key={i} fill={c}/>)}
                         </Pie>
                         <Tooltip {...TTP} formatter={(v)=>[v.toFixed(5),"CD₀"]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:12,color:C.muted}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:12,color:"#94a3b8"}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Airfoil Selection Score" ht={265}>
+                  <Panel title="Airfoil Selection Score" h={265}>
                     <div style={{height:215,overflowY:"auto"}}>
                       {[...R.afScored].sort((a,b)=>b.score-a.score).map((af,i)=>(
                         <div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -2492,38 +2434,38 @@ export default function App(){
                   </Panel>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                  <Panel title="Drag Polar" ht={235}>
+                  <Panel title="Drag Polar" h={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <LineChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="CD" tick={{fontSize:11,fill:C.muted}} label={{value:"CD",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"CL",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                        <XAxis dataKey="CD" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"CD",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"CL",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Line type="monotone" dataKey="CL" stroke={C.blue} strokeWidth={2} dot={false}/>
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Lift Curve" ht={235}>
+                  <Panel title="Lift Curve" h={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <LineChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="alpha" tick={{fontSize:11,fill:C.muted}} label={{value:"α (°)",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}}/>
+                        <XAxis dataKey="alpha" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"α (°)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Line type="monotone" dataKey="CL" stroke={C.green} strokeWidth={2} dot={false}/>
                         <ReferenceLine y={p.clDesign} stroke={C.amber} strokeDasharray="3 3" label={{value:"CL_des",fill:C.amber,fontSize:11}}/>
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="L/D Ratio" ht={235}>
+                  <Panel title="L/D Ratio" h={235}>
                     <ResponsiveContainer width="100%" height={185}>
                       <AreaChart data={R.polarData} margin={{top:5,right:8,left:-20,bottom:0}}>
                         <defs><linearGradient id="ldg" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={C.amber} stopOpacity={0.3}/><stop offset="95%" stopColor={C.amber} stopOpacity={0}/>
                         </linearGradient></defs>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="alpha" tick={{fontSize:11,fill:C.muted}} label={{value:"α (°)",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}}/>
+                        <XAxis dataKey="alpha" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"α (°)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Area type="monotone" dataKey="LD" stroke={C.amber} strokeWidth={2} fill="url(#ldg)" dot={false}/>
                         <ReferenceLine y={R.LDact} stroke={C.green} strokeDasharray="3 3" label={{value:`${R.LDact}`,fill:C.green,fontSize:11}}/>
@@ -2573,7 +2515,7 @@ export default function App(){
                       <polygon points={`${ptL(xRoot,yRoot)} ${ptL(xTip,yTip)} ${ptL(xTipTe,yTipTe)} ${ptL(xRootTe,yRootTe)}`}
                         fill="#1e3a5f" stroke="#3b82f6" strokeWidth={1.5} opacity={0.85}/>
                       {/* Root chord */}
-                      <line x1={cx} y1={yRoot} x2={cx} y2={yRootTe} stroke={C.muted} strokeWidth={1} strokeDasharray="4 2"/>
+                      <line x1={cx} y1={yRoot} x2={cx} y2={yRootTe} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 2"/>
                       {/* QC sweep line */}
                       <line x1={cx+xRoot} y1={yRootQC} x2={cx+xTip} y2={yTipQC} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 3"/>
                       <line x1={cx-xRoot} y1={yRootQC} x2={cx-xTip} y2={yTipQC} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 3"/>
@@ -2585,11 +2527,11 @@ export default function App(){
                       <rect x={cx-xMac-2} y={yMacLE} width={4} height={mac*sc} fill="#22c55e" opacity={0.9} rx={2}/>
                       {/* Span arrow */}
                       <line x1={cx-xTip} y1={H-margin.b+14} x2={cx+xTip} y2={H-margin.b+14} stroke="#64748b" strokeWidth={1} markerEnd="url(#arr)" markerStart="url(#arrl)"/>
-                      <text x={cx} y={H-margin.b+22} textAnchor="middle" fill={C.muted} fontSize={9}>b = {b} m</text>
+                      <text x={cx} y={H-margin.b+22} textAnchor="middle" fill="#94a3b8" fontSize={9}>b = {b} m</text>
                       {/* Root chord label */}
-                      <text x={cx+6} y={(yRoot+yRootTe)/2+3} fill={C.muted} fontSize={8}>Cr={Cr}m</text>
+                      <text x={cx+6} y={(yRoot+yRootTe)/2+3} fill="#94a3b8" fontSize={8}>Cr={Cr}m</text>
                       {/* Tip chord label */}
-                      <text x={cx+xTip+4} y={(yTip+yTipTe)/2+3} fill={C.muted} fontSize={8}>Ct={Ct}m</text>
+                      <text x={cx+xTip+4} y={(yTip+yTipTe)/2+3} fill="#94a3b8" fontSize={8}>Ct={Ct}m</text>
                       {/* MAC label */}
                       <text x={cx+xMac+6} y={yMacLE+mac*sc/2+3} fill="#22c55e" fontSize={8}>MAC={mac}m</text>
                       {/* Sweep annotation */}
@@ -2629,7 +2571,7 @@ export default function App(){
                   <KPI label="RPM" value={R.RPM} unit="rpm"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Actuator Disk + Motor Sizing" ht={380}>
+                  <Panel title="Actuator Disk + Motor Sizing" h={380}>
                     <div style={{overflowY:"auto",maxHeight:320}}>
                     {[["No. rotors (hover)",p.nPropHover],["Design diameter",`${p.propDiam} m`],
                       ["AD-derived diameter",`${R.Drotor} m`],["Disk loading",`${R.DLrotor} N/m²`],
@@ -2642,19 +2584,19 @@ export default function App(){
                       ["Total motor mass",`${(R.MotMass*p.nPropHover).toFixed(1)} kg`],
                     ].map(([k,v],i)=>(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid #0f131a`}}>
-                        <span style={{fontSize:10,color:C.muted}}>{k}</span>
+                        <span style={{fontSize:10,color:"#94a3b8"}}>{k}</span>
                         <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{v}</span>
                       </div>
                     ))}
                     </div>
                   </Panel>
-                  <Panel title="Phase Power Comparison" ht={320}>
+                  <Panel title="Phase Power Comparison" h={320}>
                     <ResponsiveContainer width="100%" height={270}>
                       <BarChart data={[{ph:"T/O",v:R.Phov},{ph:"Climb",v:R.Pcl},{ph:"Cruise",v:R.Pcr},{ph:"Descent",v:R.Pdc},{ph:"Land",v:R.Phov},{ph:"Reserve",v:R.Pres}]}
                         margin={{top:5,right:8,left:-10,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="ph" tick={{fontSize:11,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"kW",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                        <XAxis dataKey="ph" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"kW",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Bar dataKey="v" radius={[3,3,0,0]} name="Power (kW)">{PHC.map((c,i)=><Cell key={i} fill={c}/>)}</Bar>
                       </BarChart>
@@ -2673,15 +2615,15 @@ export default function App(){
                   <KPI label="Cell Config" value={`${R.Nseries}s×${R.Npar}p`} unit="" sub={`${R.Ncells} cells total`}/>
                   <KPI label="Final SoC" value={((1-R.Etot/R.PackkWh)*100).toFixed(1)} unit="%" color={(1-R.Etot/R.PackkWh)>=(p.socMin/(1+p.socMin))-0.01?C.green:C.red}/>
                 </div>
-                <Panel title="Battery State of Charge — Full Mission" ht={285}>
+                <Panel title="Battery State of Charge — Full Mission" h={285}>
                   <ResponsiveContainer width="100%" height={235}>
                     <AreaChart data={R.socSteps} margin={{top:5,right:10,left:-10,bottom:0}}>
                       <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={C.green} stopOpacity={0.5}/><stop offset="95%" stopColor={C.red} stopOpacity={0.05}/>
                       </linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="t" tick={{fontSize:11,fill:C.muted}} label={{value:"Time (s)",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                      <YAxis domain={[0,105]} tick={{fontSize:11,fill:C.muted}} label={{value:"SoC (%)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                      <XAxis dataKey="t" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Time (s)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                      <YAxis domain={[0,105]} tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"SoC (%)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v)=>[`${v}%`,"SoC"]}/>
                       <ReferenceLine y={p.socMin/(1+p.socMin)*100} stroke={C.red} strokeDasharray="5 3"
                         label={{value:`SoCmin ${(p.socMin/(1+p.socMin)*100).toFixed(1)}%`,fill:C.red,fontSize:11,position:"right"}}/>
@@ -2691,7 +2633,7 @@ export default function App(){
                   </ResponsiveContainer>
                 </Panel>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Pack Architecture (21700 NMC)" ht={260}>
+                  <Panel title="Pack Architecture (21700 NMC)" h={260}>
                     {[["Cell voltage","3.6 V"],["Cell capacity","5.0 Ah"],["Bus voltage",`${R.PackV} V`],
                       ["Series cells",R.Nseries],["Parallel strings",R.Npar],["Total cells",R.Ncells],
                       ["Pack energy",`${R.PackkWh} kWh`],["Battery mass",`${R.Wbat} kg`],
@@ -2704,7 +2646,7 @@ export default function App(){
                       </div>
                     ))}
                   </Panel>
-                  <Panel title="SoC per Phase" ht={260}>
+                  <Panel title="SoC per Phase" h={260}>
                     {(()=>{
                       const E=[0,R.Eto,R.Eto+R.Ecl,R.Eto+R.Ecl+R.Ecr,R.Eto+R.Ecl+R.Ecr+R.Edc,R.Eto+R.Ecl+R.Ecr+R.Edc+R.Eld,R.Etot];
                       return["Start","After T/O","After Climb","After Cruise","After Descent","After Landing","After Reserve"].map((lbl,i)=>{
@@ -2733,12 +2675,12 @@ export default function App(){
                   <KPI label="Dive Speed Vd" value={R.VD} unit="m/s"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="V-n Structural Envelope" ht={310}>
+                  <Panel title="V-n Structural Envelope" h={310}>
                     <ResponsiveContainer width="100%" height={260}>
                       <LineChart data={R.vnData} margin={{top:10,right:30,left:10,bottom:20}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="v" tick={{fontSize:11,fill:C.muted}} label={{value:"Airspeed (m/s)",position:"insideBottom",offset:-8,fontSize:12,fill:C.muted}}/>
-                        <YAxis domain={[-2.5,4.5]} tick={{fontSize:11,fill:C.muted}} label={{value:"Load factor n",angle:-90,position:"insideLeft",offset:10,fontSize:12,fill:C.muted}}/>
+                        <XAxis dataKey="v" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Airspeed (m/s)",position:"insideBottom",offset:-8,fontSize:12,fill:"#94a3b8"}}/>
+                        <YAxis domain={[-2.5,4.5]} tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Load factor n",angle:-90,position:"insideLeft",offset:10,fontSize:12,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <ReferenceLine y={0} stroke={C.muted}/>
                         <ReferenceLine y={3.5} stroke={C.blue} strokeDasharray="4 3" label={{value:"n=3.5",fill:C.blue,fontSize:11,fontWeight:600}}/>
@@ -2749,19 +2691,19 @@ export default function App(){
                         <ReferenceLine x={R.VD} stroke={C.red} strokeDasharray="4 3" label={{value:"Vd",fill:C.red,fontSize:11,fontWeight:600,position:"top"}}/>
                         <Line type="monotone" dataKey="nPos" stroke={C.blue} strokeWidth={2.5} dot={false} name="+n limit"/>
                         <Line type="monotone" dataKey="nNeg" stroke={C.red} strokeWidth={2.5} dot={false} name="-n limit"/>
-                        <Legend iconSize={10} wrapperStyle={{fontSize:12,color:C.muted,paddingTop:4}}/>
+                        <Legend iconSize={10} wrapperStyle={{fontSize:12,color:"#94a3b8",paddingTop:4}}/>
                       </LineChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Range-Payload Diagram" ht={310}>
+                  <Panel title="Range-Payload Diagram" h={310}>
                     <ResponsiveContainer width="100%" height={260}>
                       <AreaChart data={R.rpData} margin={{top:10,right:20,left:10,bottom:20}}>
                         <defs><linearGradient id="rpg" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02}/>
                         </linearGradient></defs>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="payload" tick={{fontSize:11,fill:C.muted}} label={{value:"Payload (kg)",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"Range (km)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                        <XAxis dataKey="payload" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Payload (kg)",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Range (km)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <ReferenceLine x={p.payload} stroke={C.amber} strokeDasharray="4 3" label={{value:"Design",fill:C.amber,fontSize:11}}/>
                         <ReferenceLine y={p.range} stroke={C.amber} strokeDasharray="4 3"/>
@@ -2783,7 +2725,7 @@ export default function App(){
                   <KPI label="MAC" value={R.MAC} unit="m"/>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="CG / NP / AC Positions (from nose)" ht={320}>
+                  <Panel title="CG / NP / AC Positions (from nose)" h={320}>
                     <div style={{position:"relative",height:90,margin:"10px 0 8px",background:"#0a0d14",borderRadius:6,border:"1px solid #1c2333"}}>
                       {/* fuselage body */}
                       <div style={{position:"absolute",left:"10%",right:"8%",top:"44%",height:4,background:"#1e2a3a",borderRadius:2}}/>
@@ -2817,12 +2759,12 @@ export default function App(){
                       </div>
                     ))}
                   </Panel>
-                  <Panel title="Empty Weight Breakdown (Roskam)" ht={290}>
+                  <Panel title="Empty Weight Breakdown (Roskam)" h={290}>
                     <ResponsiveContainer width="100%" height={240}>
                       <BarChart layout="vertical" data={R.weightBreak} margin={{top:0,right:30,left:60,bottom:0}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis type="number" tick={{fontSize:11,fill:C.muted}}/>
-                        <YAxis dataKey="name" type="category" tick={{fontSize:11,fill:C.muted}}/>
+                        <XAxis type="number" tick={{fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis dataKey="name" type="category" tick={{fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP}/>
                         <Bar dataKey="val" radius={[0,3,3,0]} name="kg">
                           {R.weightBreak.map((_,i)=><Cell key={i} fill={["#3b82f6","#ef4444","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4","#84cc16","#f97316","#a78bfa"][i]}/>)}
@@ -2855,10 +2797,10 @@ export default function App(){
                         <ResponsiveContainer width="100%" height={175}>
                           <LineChart data={pts} margin={{top:4,right:12,left:-15,bottom:14}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="mass" tick={{fontSize:10,fill:C.muted}}
-                              label={{value:"Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis domain={["auto","auto"]} tick={{fontSize:10,fill:C.muted}}
-                              label={{value:"xCG (m)",angle:-90,position:"insideLeft",offset:12,fontSize:10,fill:C.muted}}/>
+                            <XAxis dataKey="mass" tick={{fontSize:10,fill:"#94a3b8"}}
+                              label={{value:"Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis domain={["auto","auto"]} tick={{fontSize:10,fill:"#94a3b8"}}
+                              label={{value:"xCG (m)",angle:-90,position:"insideLeft",offset:12,fontSize:10,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP} formatter={(v,n)=>[`${v} m`,n]}/>
                             <ReferenceLine y={R.xNP} stroke={C.blue} strokeDasharray="4 2"
                               label={{value:"NP",fill:C.blue,fontSize:9,position:"right"}}/>
@@ -2884,10 +2826,10 @@ export default function App(){
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="mass" tick={{fontSize:10,fill:C.muted}}
-                              label={{value:"Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis tick={{fontSize:10,fill:C.muted}}
-                              label={{value:"SM (%)",angle:-90,position:"insideLeft",offset:15,fontSize:10,fill:C.muted}}/>
+                            <XAxis dataKey="mass" tick={{fontSize:10,fill:"#94a3b8"}}
+                              label={{value:"Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis tick={{fontSize:10,fill:"#94a3b8"}}
+                              label={{value:"SM (%)",angle:-90,position:"insideLeft",offset:15,fontSize:10,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
                             <ReferenceLine y={5} stroke={C.red} strokeDasharray="3 2"
                               label={{value:"5% min",fill:C.red,fontSize:9,position:"right"}}/>
@@ -2911,7 +2853,7 @@ export default function App(){
                   </div>
                 </Panel>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="MTOW Composition" ht={235}>
+                  <Panel title="MTOW Composition" h={235}>
                     <ResponsiveContainer width="100%" height={190}>
                       <PieChart>
                         <Pie data={[{name:"Empty",val:R.Wempty},{name:"Battery",val:R.Wbat},{name:"Payload",val:p.payload}]}
@@ -2919,11 +2861,11 @@ export default function App(){
                           {[C.blue,C.amber,C.green].map((c,i)=><Cell key={i} fill={c}/>)}
                         </Pie>
                         <Tooltip {...TTP} formatter={(v,n)=>[`${v.toFixed(1)} kg (${(v/R.MTOW*100).toFixed(1)}%)`,n]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:12,color:C.muted}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:12,color:"#94a3b8"}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Feasibility Checks" ht={235}>
+                  <Panel title="Feasibility Checks" h={235}>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:4}}>
                       {R.checks.map((c,i)=>(
                         <div key={i} style={{background:C.bg,borderRadius:5,padding:"7px 9px",border:`1px solid ${c.ok?C.green+"33":C.red+"33"}`}}>
@@ -2963,7 +2905,7 @@ export default function App(){
                   {/* Panel Geometry */}
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",
+                      <div style={{fontSize:9,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",
                         fontFamily:"'DM Mono',monospace",marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>
                         Panel Geometry
                       </div>
@@ -2981,7 +2923,7 @@ export default function App(){
                       ))}
                     </div>
                     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",
+                      <div style={{fontSize:9,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",
                         fontFamily:"'DM Mono',monospace",marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>
                         Weight & Drag
                       </div>
@@ -2997,7 +2939,7 @@ export default function App(){
                     </div>
                     {/* SVG schematic — below Weight & Drag, beside Control Authority */}
                     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",
+                      <div style={{fontSize:9,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",
                         fontFamily:"'DM Mono',monospace",marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>
                         Rear View Schematic
                       </div>
@@ -3035,7 +2977,7 @@ export default function App(){
                   {/* Dihedral trade chart + effectiveness */}
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",
+                      <div style={{fontSize:9,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",
                         fontFamily:"'DM Mono',monospace",marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>
                         Dihedral Angle Trade — Intrinsic Effectiveness &amp; Required Area
                       </div>
@@ -3058,10 +3000,10 @@ export default function App(){
                               })}
                               margin={{top:4,right:8,left:0,bottom:18}}>
                               <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                              <XAxis dataKey="gamma" tick={{fontSize:10,fill:C.muted}}
-                                label={{value:"Γ (°)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                              <YAxis domain={[0,100]} tick={{fontSize:10,fill:C.muted}}
-                                label={{value:"%",angle:-90,position:"insideLeft",offset:8,fontSize:11,fill:C.muted}}/>
+                              <XAxis dataKey="gamma" tick={{fontSize:10,fill:"#94a3b8"}}
+                                label={{value:"Γ (°)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                              <YAxis domain={[0,100]} tick={{fontSize:10,fill:"#94a3b8"}}
+                                label={{value:"%",angle:-90,position:"insideLeft",offset:8,fontSize:11,fill:"#94a3b8"}}/>
                               <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
                               <ReferenceLine x={p.vtGamma} stroke={C.amber} strokeDasharray="3 2"
                                 label={{value:"Γ",fill:C.amber,fontSize:10,position:"top"}}/>
@@ -3070,7 +3012,7 @@ export default function App(){
                               <ReferenceLine y={50} stroke={C.dim} strokeDasharray="2 2"/>
                               <Line type="monotone" dataKey="pitch" stroke={C.blue} strokeWidth={2} dot={false} name="Pitch cos²Γ"/>
                               <Line type="monotone" dataKey="yaw" stroke={C.red} strokeWidth={2} dot={false} name="Yaw sin²Γ"/>
-                              <Legend iconSize={8} wrapperStyle={{fontSize:10,color:C.muted}}/>
+                              <Legend iconSize={8} wrapperStyle={{fontSize:10,color:"#94a3b8"}}/>
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
@@ -3091,10 +3033,10 @@ export default function App(){
                               })}
                               margin={{top:4,right:8,left:0,bottom:18}}>
                               <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                              <XAxis dataKey="gamma" tick={{fontSize:10,fill:C.muted}}
-                                label={{value:"Γ (°)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                              <YAxis tick={{fontSize:10,fill:C.muted}}
-                                label={{value:"m²",angle:-90,position:"insideLeft",offset:8,fontSize:11,fill:C.muted}}/>
+                              <XAxis dataKey="gamma" tick={{fontSize:10,fill:"#94a3b8"}}
+                                label={{value:"Γ (°)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                              <YAxis tick={{fontSize:10,fill:"#94a3b8"}}
+                                label={{value:"m²",angle:-90,position:"insideLeft",offset:8,fontSize:11,fill:"#94a3b8"}}/>
                               <Tooltip {...TTP} formatter={(v,n)=>[`${v} m²`,n]}/>
                               <ReferenceLine x={p.vtGamma} stroke={C.amber} strokeDasharray="3 2"
                                 label={{value:"Γ",fill:C.amber,fontSize:10,position:"top"}}/>
@@ -3115,7 +3057,7 @@ export default function App(){
                     </div>
                     {/* Control Authority checks */}
                     <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px"}}>
-                      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.12em",
+                      <div style={{fontSize:9,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",
                         fontFamily:"'DM Mono',monospace",marginBottom:8,borderBottom:`1px solid ${C.border}`,paddingBottom:5}}>
                         Control Authority vs Requirement
                       </div>
@@ -3167,10 +3109,10 @@ export default function App(){
                           })}
                           margin={{top:4,right:8,left:2,bottom:20}}>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="gamma" tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"Γ (°)",position:"insideBottom",offset:-8,fontSize:10,fill:C.muted}}/>
-                          <YAxis tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:C.muted}}/>
+                          <XAxis dataKey="gamma" tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"Γ (°)",position:"insideBottom",offset:-8,fontSize:10,fill:"#94a3b8"}}/>
+                          <YAxis tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:"#94a3b8"}}/>
                           <Tooltip {...TTP} formatter={(v)=>[`${v}°`,"δ_rv pitch"]}/>
                           <ReferenceLine y={20} stroke={C.red} strokeDasharray="3 2"
                             label={{value:"20° lim",fill:C.red,fontSize:9,position:"right"}}/>
@@ -3200,10 +3142,10 @@ export default function App(){
                           })}
                           margin={{top:4,right:8,left:2,bottom:20}}>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="beta" tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"β (°)",position:"insideBottom",offset:-8,fontSize:10,fill:C.muted}}/>
-                          <YAxis tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:C.muted}}/>
+                          <XAxis dataKey="beta" tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"β (°)",position:"insideBottom",offset:-8,fontSize:10,fill:"#94a3b8"}}/>
+                          <YAxis tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:"#94a3b8"}}/>
                           <Tooltip {...TTP} formatter={(v)=>[`${v}°`,"δ_rv yaw"]}/>
                           <ReferenceLine y={20} stroke={C.red} strokeDasharray="3 2"
                             label={{value:"20° lim",fill:C.red,fontSize:9,position:"right"}}/>
@@ -3239,10 +3181,10 @@ export default function App(){
                           })}
                           margin={{top:4,right:8,left:2,bottom:20}}>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="sm" tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"SM (%)",position:"insideBottom",offset:-8,fontSize:10,fill:C.muted}}/>
-                          <YAxis tick={{fontSize:10,fill:C.muted}}
-                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:C.muted}}/>
+                          <XAxis dataKey="sm" tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"SM (%)",position:"insideBottom",offset:-8,fontSize:10,fill:"#94a3b8"}}/>
+                          <YAxis tick={{fontSize:10,fill:"#94a3b8"}}
+                            label={{value:"δ (°)",angle:-90,position:"insideLeft",offset:10,fontSize:10,fill:"#94a3b8"}}/>
                           <Tooltip {...TTP} formatter={(v)=>[`${v}°`,"δ_rv"]}/>
                           <ReferenceLine y={20} stroke={C.red} strokeDasharray="3 2"
                             label={{value:"20° lim",fill:C.red,fontSize:9,position:"right"}}/>
@@ -3290,7 +3232,7 @@ export default function App(){
                 )}
 
                 {/* T/W insight banner */}
-                <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 16px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                <div style={{background:"linear-gradient(135deg,#0d1117,#0f172a)",border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 16px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.12em",marginBottom:3}}>THRUST-TO-WEIGHT ANALYSIS</div>
                     <div style={{fontSize:11,color:C.text,lineHeight:1.6}}>
@@ -3301,7 +3243,7 @@ export default function App(){
                 </div>
 
                 {/* Tolerance control */}
-                <div style={{background:C.panel,border:`1px solid ${"#22d3ee"}44`,borderRadius:8,padding:"14px 18px"}}>
+                <div style={{background:"linear-gradient(135deg,#0f172a,#0d1b2a)",border:`1px solid ${"#22d3ee"}44`,borderRadius:8,padding:"14px 18px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.12em",marginBottom:8}}>CONVERGENCE TOLERANCE CONTROL</div>
                   <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
                     <div style={{flex:1,minWidth:220}}>
@@ -3327,12 +3269,12 @@ export default function App(){
                   </div>
                 </div>
 
-                <Panel title={`MTOW Convergence History — Actual Run at ε = 10^${p.convTolExp} (${R.itersR2} R2 iters${R.r2Converged?"":", cap hit"})`} ht={280}>
+                <Panel title={`MTOW Convergence History — Actual Run at ε = 10^${p.convTolExp} (${R.itersR2} R2 iters${R.r2Converged?"":", cap hit"})`} h={280}>
                   <ResponsiveContainer width="100%" height={230}>
                     <LineChart data={R.convData} margin={{top:5,right:20,left:-10,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="iter" tick={{fontSize:11,fill:C.muted}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"MTOW (kg)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                      <XAxis dataKey="iter" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"MTOW (kg)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP}/>
                       <ReferenceLine y={R.MTOW1} stroke={C.muted} strokeDasharray="4 3" label={{value:`R1: ${R.MTOW1} kg`,fill:C.muted,fontSize:10,position:"insideTopLeft"}}/>
                       <Line type="monotone" dataKey="MTOW" stroke={C.amber} strokeWidth={2} dot={{r:3,fill:C.amber}} name="MTOW (kg)"/>
@@ -3341,12 +3283,12 @@ export default function App(){
                   </ResponsiveContainer>
                 </Panel>
 
-                <Panel title="Energy Convergence History" ht={255}>
+                <Panel title="Energy Convergence History" h={255}>
                   <ResponsiveContainer width="100%" height={205}>
                     <LineChart data={R.convData.filter(d=>d.Energy!=null)} margin={{top:5,right:20,left:-10,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="iter" tick={{fontSize:11,fill:C.muted}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"Total Energy (kWh)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                      <XAxis dataKey="iter" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Total Energy (kWh)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP}/>
                       <Line type="monotone" dataKey="Energy" stroke={C.teal} strokeWidth={2} dot={{r:3,fill:C.teal}} name="Energy (kWh)"/>
                       <ReferenceLine y={R.Etot} stroke={C.green} strokeDasharray="4 3" label={{value:"Converged",fill:C.green,fontSize:11}}/>
@@ -3355,15 +3297,15 @@ export default function App(){
                 </Panel>
 
                 {/* Residual log plot */}
-                <Panel title={`Residual Convergence — log₁₀(|ΔW₀|) per Iteration  [ε = ${R.tol.toExponential(0)} → log₁₀(ε) = ${p.convTolExp}]`} ht={270}>
+                <Panel title={`Residual Convergence — log₁₀(|ΔW₀|) per Iteration  [ε = ${R.tol.toExponential(0)} → log₁₀(ε) = ${p.convTolExp}]`} h={270}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:4}}>
                     Each bar shows log₁₀ of the MTOW change per iteration. Convergence when bar drops below the <span style={{color:"#22d3ee"}}>ε threshold line</span>.
                   </div>
                   <ResponsiveContainer width="100%" height={205}>
                     <ComposedChart data={R.convData.filter(d=>d.logResidual!=null)} margin={{top:5,right:20,left:5,bottom:0}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="iter" tick={{fontSize:11,fill:C.muted}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:11,fill:C.muted}} label={{value:"log₁₀(|ΔW₀| kg)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}/>
+                      <XAxis dataKey="iter" tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"Iteration",position:"insideBottom",fontSize:12,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}} label={{value:"log₁₀(|ΔW₀| kg)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`10^${v.toFixed(2)} kg`,n]}/>
                       <ReferenceLine y={p.convTolExp} stroke="#22d3ee" strokeDasharray="4 3"
                         label={{value:`ε = 10^${p.convTolExp}`,fill:"#22d3ee",fontSize:10,position:"right"}}/>
@@ -3377,8 +3319,8 @@ export default function App(){
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace"}}>
                     <thead>
                       <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                        {["Tolerance","R1 Iters","R2 Iters","Total","MTOW (kg)","ΔM vs 1e-10"].map(hdr=>(
-                          <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{hdr}</th>
+                        {["Tolerance","R1 Iters","R2 Iters","Total","MTOW (kg)","ΔM vs 1e-10"].map(h=>(
+                          <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3403,7 +3345,7 @@ export default function App(){
                 </Panel>
 
                 {/* T/W vs MTOW Trade Chart */}
-                <Panel title={`T/W Ratio vs MTOW — Round 1 vs Round 2 at T/W = ${p.twRatio.toFixed(2)}`} ht={320}>
+                <Panel title={`T/W Ratio vs MTOW — Round 1 vs Round 2 at T/W = ${p.twRatio.toFixed(2)}`} h={320}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4}}>
                     Round 1 is flat (T/W doesn't affect energy-only sizing). Round 2 scales as T/W^1.5 — higher thrust margin → higher hover power → heavier battery → higher MTOW.
                     Current T/W = <span style={{color:C.amber,fontWeight:700}}>{p.twRatio.toFixed(2)}</span> highlighted.
@@ -3411,13 +3353,13 @@ export default function App(){
                   <ResponsiveContainer width="100%" height={255}>
                     <ComposedChart data={R.twSweepData} margin={{top:5,right:20,left:-10,bottom:20}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="tw" tick={{fontSize:11,fill:C.muted}}
-                        label={{value:"Installed T/W Ratio",position:"insideBottom",offset:-8,fontSize:12,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:11,fill:C.muted}}
-                        label={{value:"MTOW (kg)",angle:-90,position:"insideLeft",fontSize:12,fill:C.muted}}
+                      <XAxis dataKey="tw" tick={{fontSize:11,fill:"#94a3b8"}}
+                        label={{value:"Installed T/W Ratio",position:"insideBottom",offset:-8,fontSize:12,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:11,fill:"#94a3b8"}}
+                        label={{value:"MTOW (kg)",angle:-90,position:"insideLeft",fontSize:12,fill:"#94a3b8"}}
                         domain={['auto','auto']}/>
                       <Tooltip {...TTP} formatter={(v,n)=>[`${v.toFixed(0)} kg`,n]}/>
-                      <Legend iconSize={9} wrapperStyle={{fontSize:12,color:C.muted,paddingTop:4}}/>
+                      <Legend iconSize={9} wrapperStyle={{fontSize:12,color:"#94a3b8",paddingTop:4}}/>
                       <ReferenceLine x={+p.twRatio.toFixed(2)} stroke={C.amber} strokeWidth={2}
                         label={{value:`Current T/W=${p.twRatio.toFixed(2)}`,fill:C.amber,fontSize:10,position:"insideTopRight"}}/>
                       <Line type="monotone" dataKey="R1" stroke={C.muted} strokeWidth={2} strokeDasharray="6 3"
@@ -3438,8 +3380,8 @@ export default function App(){
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace"}}>
                     <thead>
                       <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                        {["T/W","R1 MTOW (kg)","R2 MTOW (kg)","ΔM (kg)","Δ% vs R1","Phov at R2 (kW)"].map(hdr=>(
-                          <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{hdr}</th>
+                        {["T/W","R1 MTOW (kg)","R2 MTOW (kg)","ΔM (kg)","Δ% vs R1","Phov at R2 (kW)"].map(h=>(
+                          <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",fontSize:10}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3496,7 +3438,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#0d1117,#1a0a2e)",
                   border:`1px solid #7c3aed44`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>UNCERTAINTY QUANTIFICATION — MONTE CARLO METHOD</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,letterSpacing:"-0.02em",marginBottom:6}}>
@@ -3641,7 +3583,7 @@ export default function App(){
                     </div>
 
                     {/* MTOW Probability Distribution */}
-                    <Panel title={`MTOW Probability Distribution — ${mcResults.N.toLocaleString()} Monte Carlo Samples`} ht={320}>
+                    <Panel title={`MTOW Probability Distribution — ${mcResults.N.toLocaleString()} Monte Carlo Samples`} h={320}>
                       <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4,fontFamily:"'DM Mono',monospace"}}>
                         Each bar = count of designs in that MTOW bin. Bell shape confirms normal convergence.
                         <span style={{color:C.amber}}> Nominal MTOW = {R.MTOW} kg</span> (deterministic).
@@ -3650,14 +3592,14 @@ export default function App(){
                       <ResponsiveContainer width="100%" height={255}>
                         <ComposedChart data={mcResults.MTOW.hist} margin={{top:5,right:20,left:5,bottom:20}}>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                            label={{value:"MTOW (kg)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                          <YAxis yAxisId="left" tick={{fontSize:9,fill:C.muted}}
-                            label={{value:"Count",angle:-90,position:"insideLeft",fontSize:11,fill:C.muted}}/>
+                          <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                            label={{value:"MTOW (kg)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                          <YAxis yAxisId="left" tick={{fontSize:9,fill:"#94a3b8"}}
+                            label={{value:"Count",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
                           <YAxis yAxisId="right" orientation="right" tick={{fontSize:9,fill:"#a78bfa"}}
                             label={{value:"% of runs",angle:90,position:"insideRight",fontSize:11,fill:"#a78bfa"}}/>
                           <Tooltip {...TTP} formatter={(v,n)=>n==="Count"?[v,n]:[`${v}%`,n]}/>
-                          <Legend iconSize={9} wrapperStyle={{fontSize:11,color:C.muted}}/>
+                          <Legend iconSize={9} wrapperStyle={{fontSize:11,color:"#94a3b8"}}/>
                           <Bar yAxisId="left" dataKey="count" fill="#7c3aed" opacity={0.8} name="Count" radius={[2,2,0,0]}/>
                           <Line yAxisId="right" type="monotone" dataKey="pct" stroke={C.amber} strokeWidth={2} dot={false} name="% of runs"/>
                           <ReferenceLine yAxisId="left" x={mcResults.MTOW.stats.mean.toFixed(1)} stroke={C.amber} strokeWidth={2} strokeDasharray="6 3"
@@ -3671,7 +3613,7 @@ export default function App(){
                     </Panel>
 
                     {/* CDF */}
-                    <Panel title="Cumulative Distribution Function (CDF) — MTOW" ht={290}>
+                    <Panel title="Cumulative Distribution Function (CDF) — MTOW" h={290}>
                       <div style={{fontSize:10,color:C.muted,marginBottom:6,paddingLeft:4,fontFamily:"'DM Mono',monospace"}}>
                         Read as: <span style={{color:C.green}}>P(MTOW ≤ x)</span>. The <span style={{color:C.amber}}>P90 line</span> shows that 90% of all possible designs have MTOW below this value.
                         This is the key output for design margin decisions.
@@ -3683,10 +3625,10 @@ export default function App(){
                             <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.02}/>
                           </linearGradient></defs>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                            label={{value:"MTOW (kg)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                          <YAxis domain={[0,100]} tick={{fontSize:9,fill:C.muted}}
-                            label={{value:"Probability (%)",angle:-90,position:"insideLeft",fontSize:11,fill:C.muted}}/>
+                          <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                            label={{value:"MTOW (kg)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                          <YAxis domain={[0,100]} tick={{fontSize:9,fill:"#94a3b8"}}
+                            label={{value:"Probability (%)",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
                           <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,"P(MTOW ≤ x)"]}/>
                           <Area type="monotone" dataKey="cdf" stroke="#7c3aed" strokeWidth={2.5} fill="url(#cdfg)" dot={false} name="CDF"/>
                           <ReferenceLine y={50}  stroke={C.muted}   strokeDasharray="4 2" label={{value:"P50",fill:C.muted,fontSize:9,position:"right"}}/>
@@ -3700,13 +3642,13 @@ export default function App(){
 
                     {/* Other distributions row */}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                      <Panel title="Total Energy Distribution (kWh)" ht={240}>
+                      <Panel title="Total Energy Distribution (kWh)" h={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Etot.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                              label={{value:"Energy (kWh)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis tick={{fontSize:9,fill:C.muted}}/>
+                            <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                              label={{value:"Energy (kWh)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis tick={{fontSize:9,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP}/>
                             <Bar dataKey="count" fill={C.teal} opacity={0.8} radius={[2,2,0,0]}/>
                             <ReferenceLine x={mcResults.Etot.stats.mean.toFixed(2)} stroke={C.amber} strokeDasharray="4 2"
@@ -3714,13 +3656,13 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Static Margin Distribution (% MAC)" ht={240}>
+                      <Panel title="Static Margin Distribution (% MAC)" h={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.SM.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                              label={{value:"SM (% MAC)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis tick={{fontSize:9,fill:C.muted}}/>
+                            <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                              label={{value:"SM (% MAC)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis tick={{fontSize:9,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP}/>
                             <Bar dataKey="count" radius={[2,2,0,0]}>
                               {mcResults.SM.hist.map((d,i)=>(
@@ -3734,13 +3676,13 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Hover Power Distribution (kW)" ht={240}>
+                      <Panel title="Hover Power Distribution (kW)" h={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Phov.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                              label={{value:"Hover Power (kW)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis tick={{fontSize:9,fill:C.muted}}/>
+                            <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                              label={{value:"Hover Power (kW)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis tick={{fontSize:9,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP}/>
                             <Bar dataKey="count" fill={C.blue} opacity={0.8} radius={[2,2,0,0]}/>
                             <ReferenceLine x={mcResults.Phov.stats.mean.toFixed(1)} stroke={C.amber} strokeDasharray="4 2"
@@ -3748,13 +3690,13 @@ export default function App(){
                           </BarChart>
                         </ResponsiveContainer>
                       </Panel>
-                      <Panel title="Battery Mass Distribution (kg)" ht={240}>
+                      <Panel title="Battery Mass Distribution (kg)" h={240}>
                         <ResponsiveContainer width="100%" height={195}>
                           <BarChart data={mcResults.Wbat.hist} margin={{top:5,right:10,left:-10,bottom:16}}>
                             <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                            <XAxis dataKey="x" tick={{fontSize:9,fill:C.muted}}
-                              label={{value:"Battery Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:C.muted}}/>
-                            <YAxis tick={{fontSize:9,fill:C.muted}}/>
+                            <XAxis dataKey="x" tick={{fontSize:9,fill:"#94a3b8"}}
+                              label={{value:"Battery Mass (kg)",position:"insideBottom",offset:-6,fontSize:10,fill:"#94a3b8"}}/>
+                            <YAxis tick={{fontSize:9,fill:"#94a3b8"}}/>
                             <Tooltip {...TTP}/>
                             <Bar dataKey="count" fill={C.amber} opacity={0.8} radius={[2,2,0,0]}/>
                             <ReferenceLine x={mcResults.Wbat.stats.mean.toFixed(1)} stroke={C.green} strokeDasharray="4 2"
@@ -3772,10 +3714,10 @@ export default function App(){
                       <div style={{overflowX:"auto"}}>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                           <thead>
-                            <tr style={{background:C.panel}}>
-                              {["Quantity","Unit","Min","P5","P25","Median","P75","P95","Max","Mean","σ","CV %"].map(hdr=>(
-                                <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",
-                                  fontSize:9,letterSpacing:"0.04em"}}>{hdr}</th>
+                            <tr style={{background:"#111927"}}>
+                              {["Quantity","Unit","Min","P5","P25","Median","P75","P95","Max","Mean","σ","CV %"].map(h=>(
+                                <th key={h} style={{padding:"5px 8px",color:C.muted,fontWeight:600,textAlign:"right",
+                                  fontSize:9,letterSpacing:"0.04em"}}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -4196,7 +4138,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#0a1628,#0d1f3c)",
                   border:`1px solid #3b82f644`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>REGULATORY COMPLIANCE — CONCEPTUAL DESIGN PHASE</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
@@ -4308,7 +4250,7 @@ export default function App(){
                                 )}
                               </div>
                               <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,lineHeight:1.5}}>{rule.desc}</div>
-                              <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
+                              <div style={{fontSize:9,color:"#475569",fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0,minWidth:130}}>
                               <div style={{fontSize:11,color:rule.check?C.green:sevColor[rule.severity],fontFamily:"'DM Mono',monospace",fontWeight:700}}>{rule.value}</div>
@@ -4358,7 +4300,7 @@ export default function App(){
                                 )}
                               </div>
                               <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:4,lineHeight:1.5}}>{rule.desc}</div>
-                              <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
+                              <div style={{fontSize:9,color:"#475569",fontFamily:"'DM Mono',monospace"}}>Ref: {rule.ref}</div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0,minWidth:130}}>
                               <div style={{fontSize:11,color:rule.check?C.green:sevColor[rule.severity],fontFamily:"'DM Mono',monospace",fontWeight:700}}>{rule.value}</div>
@@ -4389,7 +4331,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#0d1117,#1a0d2e)",
                   border:`1px solid #8b5cf644`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>ROTOR ACOUSTICS — BPF TONAL + BROADBAND MODEL</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
@@ -4429,10 +4371,10 @@ export default function App(){
                         }))}
                         margin={{top:5,right:20,left:5,bottom:20}}>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="r" tick={{fontSize:9,fill:C.muted}}
-                          label={{value:"Distance (m)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                        <YAxis tick={{fontSize:9,fill:C.muted}}
-                          label={{value:"dBA",angle:-90,position:"insideLeft",fontSize:11,fill:C.muted}}/>
+                        <XAxis dataKey="r" tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"Distance (m)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                        <YAxis tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"dBA",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP} formatter={(v)=>[`${v} dBA`,"SPL"]}/>
                         <ReferenceLine y={65} stroke={C.green}  strokeDasharray="5 3"
                           label={{value:"65 dBA (EASA UAM)",fill:C.green,fontSize:9,position:"right"}}/>
@@ -4492,7 +4434,7 @@ export default function App(){
                 </div>
 
                 {/* BPF Harmonics spectrum */}
-                <Panel title="BPF Tonal Spectrum — First 4 Harmonics (A-weighted)" ht={270}>
+                <Panel title="BPF Tonal Spectrum — First 4 Harmonics (A-weighted)" h={270}>
                   <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8}}>
                     Tonal noise at integer multiples of BPF = {R.BPF.toFixed(1)} Hz.
                     Higher harmonics attenuate at ~6 dB/octave. A-weighting penalises low frequencies.
@@ -4500,16 +4442,16 @@ export default function App(){
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={R.bpfHarmonics} margin={{top:5,right:20,left:5,bottom:20}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis dataKey="freq" tick={{fontSize:10,fill:C.muted}}
+                      <XAxis dataKey="freq" tick={{fontSize:10,fill:"#94a3b8"}}
                         tickFormatter={v=>`${v} Hz`}
-                        label={{value:"Frequency (Hz)",position:"insideBottom",offset:-6,fontSize:11,fill:C.muted}}/>
-                      <YAxis tick={{fontSize:9,fill:C.muted}}
-                        label={{value:"SPL (dBA at 150m)",angle:-90,position:"insideLeft",fontSize:11,fill:C.muted}}/>
+                        label={{value:"Frequency (Hz)",position:"insideBottom",offset:-6,fontSize:11,fill:"#94a3b8"}}/>
+                      <YAxis tick={{fontSize:9,fill:"#94a3b8"}}
+                        label={{value:"SPL (dBA at 150m)",angle:-90,position:"insideLeft",fontSize:11,fill:"#94a3b8"}}/>
                       <Tooltip {...TTP} formatter={(v)=>[`${v} dBA`,"SPL"]}
-                        labelFormatter={f=>`BPF×${R.bpfHarmonics.findIndex(harm=>harm.freq===f)+1} = ${f} Hz`}/>
+                        labelFormatter={f=>`BPF×${R.bpfHarmonics.findIndex(h=>h.freq===f)+1} = ${f} Hz`}/>
                       <Bar dataKey="SPL" radius={[4,4,0,0]} name="dBA at 150m">
-                        {R.bpfHarmonics.map((harm,i)=>(
-                          <Cell key={i} fill={harm.SPL<=65?"#22c55e":harm.SPL<=75?"#f59e0b":"#ef4444"}/>
+                        {R.bpfHarmonics.map((h,i)=>(
+                          <Cell key={i} fill={h.SPL<=65?"#22c55e":h.SPL<=75?"#f59e0b":"#ef4444"}/>
                         ))}
                       </Bar>
                       <ReferenceLine y={65} stroke={C.green} strokeDasharray="4 3"
@@ -4709,7 +4651,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:darkMode?"linear-gradient(135deg,#0d1a0d,#0a1f14)":C.panel,
+                <div style={{background:"linear-gradient(135deg,#0d1a0d,#0a1f14)",
                   border:`1px solid #22c55e44`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>$/FLIGHT ECONOMICS — LIFECYCLE COST MODEL</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
@@ -4749,7 +4691,7 @@ export default function App(){
 
                 {/* Cost breakdown + battery degradation */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <Panel title="Cost Breakdown per Flight ($)" ht={280}>
+                  <Panel title="Cost Breakdown per Flight ($)" h={280}>
                     <ResponsiveContainer width="100%" height={235}>
                       <PieChart>
                         <Pie data={costParts} dataKey="val" nameKey="name"
@@ -4757,11 +4699,11 @@ export default function App(){
                           {costParts.map((c,i)=><Cell key={i} fill={c.col}/>)}
                         </Pie>
                         <Tooltip {...TTP} formatter={(v)=>[`$${v}`,""]}/>
-                        <Legend iconSize={8} wrapperStyle={{fontSize:10,color:C.muted}}/>
+                        <Legend iconSize={8} wrapperStyle={{fontSize:10,color:"#94a3b8"}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </Panel>
-                  <Panel title="Battery Pack Degradation vs Charge Cycles" ht={280}>
+                  <Panel title="Battery Pack Degradation vs Charge Cycles" h={280}>
                     <ResponsiveContainer width="100%" height={235}>
                       <AreaChart data={degradationData} margin={{top:5,right:15,left:-10,bottom:0}}>
                         <defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
@@ -4769,10 +4711,10 @@ export default function App(){
                           <stop offset="95%" stopColor={C.amber} stopOpacity={0.02}/>
                         </linearGradient></defs>
                         <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                        <XAxis dataKey="cycles" tick={{fontSize:9,fill:C.muted}}
-                          label={{value:"Cycles",position:"insideBottom",fontSize:10,fill:C.muted}}/>
-                        <YAxis domain={[50,105]} tick={{fontSize:9,fill:C.muted}}
-                          label={{value:"SoH (%)",angle:-90,position:"insideLeft",fontSize:10,fill:C.muted}}/>
+                        <XAxis dataKey="cycles" tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"Cycles",position:"insideBottom",fontSize:10,fill:"#94a3b8"}}/>
+                        <YAxis domain={[50,105]} tick={{fontSize:9,fill:"#94a3b8"}}
+                          label={{value:"SoH (%)",angle:-90,position:"insideLeft",fontSize:10,fill:"#94a3b8"}}/>
                         <Tooltip {...TTP} formatter={(v,n)=>[`${v}%`,n]}/>
                         <ReferenceLine y={80} stroke={C.red} strokeDasharray="4 3"
                           label={{value:"80% SoH (replace)",fill:C.red,fontSize:9,position:"right"}}/>
@@ -4842,9 +4784,9 @@ export default function App(){
                       data={costParts.map(c=>({...c,pct:+(c.val/totalCost_per_flight*100).toFixed(1)})).sort((a,b)=>b.pct-a.pct)}
                       margin={{top:5,right:60,left:60,bottom:5}}>
                       <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                      <XAxis type="number" tick={{fontSize:9,fill:C.muted}}
-                        label={{value:"% of total cost",position:"insideBottom",fontSize:10,fill:C.muted}}/>
-                      <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:C.muted}} width={80}/>
+                      <XAxis type="number" tick={{fontSize:9,fill:"#94a3b8"}}
+                        label={{value:"% of total cost",position:"insideBottom",fontSize:10,fill:"#94a3b8"}}/>
+                      <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:"#94a3b8"}} width={80}/>
                       <Tooltip {...TTP} formatter={(v)=>[`${v}%`,"Share"]}/>
                       <Bar dataKey="pct" radius={[0,4,4,0]} name="% of cost">
                         {costParts.sort((a,b)=>b.val-a.val).map((c,i)=><Cell key={i} fill={c.col}/>)}
@@ -4869,7 +4811,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#0d1117,#0a1f14)",
                   border:`1px solid #06d6a044`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>CUSTOM MISSION PROFILE — DRAG & DROP PHASES</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
@@ -5014,14 +4956,14 @@ export default function App(){
                     </div>
 
                     {/* Phase breakdown chart */}
-                    <Panel title="Phase Power & Energy Breakdown" ht={280}>
+                    <Panel title="Phase Power & Energy Breakdown" h={280}>
                       <ResponsiveContainer width="100%" height={235}>
                         <BarChart data={mbResults.phases.map(ph=>({
                             name:ph.label,power:ph.power,energy:ph.energy,
                             fill:PHASE_TYPES[ph.type]?.col||C.muted}))}
                           margin={{top:5,right:20,left:5,bottom:20}}>
                           <CartesianGrid strokeDasharray="2 2" stroke={C.border}/>
-                          <XAxis dataKey="name" tick={{fontSize:9,fill:C.muted}} angle={-20} textAnchor="end"/>
+                          <XAxis dataKey="name" tick={{fontSize:9,fill:"#94a3b8"}} angle={-20} textAnchor="end"/>
                           <YAxis yAxisId="left" tick={{fontSize:10,fill:C.amber}}
                             label={{value:"Power (kW)",angle:-90,position:"insideLeft",fontSize:10,fill:C.amber}}/>
                           <YAxis yAxisId="right" orientation="right" tick={{fontSize:10,fill:C.teal}}
@@ -5040,9 +4982,9 @@ export default function App(){
                     <Panel title="Phase-by-Phase Results">
                       <div style={{overflowX:"auto"}}>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
-                          <thead><tr style={{background:C.panel}}>
-                            {["Phase","Type","Power (kW)","Energy (kWh)","Time (s)","Distance (km)","% Total E"].map(hdr=>(
-                              <th key={hdr} style={{padding:"5px 8px",color:C.muted,fontSize:9,fontWeight:600,textAlign:"right"}}>{hdr}</th>
+                          <thead><tr style={{background:"#111927"}}>
+                            {["Phase","Type","Power (kW)","Energy (kWh)","Time (s)","Distance (km)","% Total E"].map(h=>(
+                              <th key={h} style={{padding:"5px 8px",color:C.muted,fontSize:9,fontWeight:600,textAlign:"right"}}>{h}</th>
                             ))}
                           </tr></thead>
                           <tbody>
@@ -5067,7 +5009,7 @@ export default function App(){
                                 </tr>
                               );
                             })}
-                            <tr style={{borderTop:`2px solid ${C.border}`,background:C.panel,fontWeight:700}}>
+                            <tr style={{borderTop:`2px solid ${C.border}`,background:"#111927",fontWeight:700}}>
                               <td style={{padding:"6px 8px",color:C.text}} colSpan={2}>TOTAL</td>
                               <td style={{padding:"6px 8px",color:C.amber,textAlign:"right"}}>—</td>
                               <td style={{padding:"6px 8px",color:C.teal,textAlign:"right"}}>{mbResults.totalE}</td>
@@ -5089,7 +5031,7 @@ export default function App(){
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
 
                 {/* Header */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#071a2f,#0a2a4a)",
                   border:`1px solid #3b82f644`,borderRadius:10,padding:"16px 20px"}}>
                   <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",letterSpacing:"0.18em",marginBottom:6}}>REAL-TIME ATMOSPHERIC CONDITIONS — OPEN-METEO API</div>
                   <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:6}}>
@@ -5266,7 +5208,7 @@ export default function App(){
             {tab===15&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {/* Header banner */}
-                <div style={{background:C.panel,
+                <div style={{background:"linear-gradient(135deg,#0d1117 0%,#0f172a 100%)",
                   border:`1px solid ${C.border}`,borderRadius:8,padding:"16px 20px",
                   display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
                   <div>
@@ -5322,9 +5264,9 @@ export default function App(){
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:10,fontFamily:"'DM Mono',monospace"}}>
                       <thead>
                         <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                          {["Component","x_LE (m)","y (m)","z (m)","Dihedral"].map(hdr=>(
-                            <th key={hdr} style={{textAlign:"left",padding:"3px 6px",fontSize:8,color:C.muted,
-                              textTransform:"uppercase",letterSpacing:"0.08em"}}>{hdr}</th>
+                          {["Component","x_LE (m)","y (m)","z (m)","Dihedral"].map(h=>(
+                            <th key={h} style={{textAlign:"left",padding:"3px 6px",fontSize:8,color:C.muted,
+                              textTransform:"uppercase",letterSpacing:"0.08em"}}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -5469,24 +5411,6 @@ export default function App(){
                   </AuthGate>
                 </div>
               </div>
-            )}
-
-            {/* ──── TAB 16: COMMUNITY & LEADERBOARD ──── */}
-            {tab===16&&(
-              <LeaderboardPanel C={C} onLoadDesign={(row)=>{
-                try{
-                  const params=JSON.parse(row.params||"{}");
-                  if(Object.keys(params).length>0){
-                    setP(prev=>({...prev,...params}));
-                    addNotif&&user&&addNotif(user.id,{title:"Design Loaded",body:`Loaded "${row.name}" from community leaderboard.`,type:"info"});
-                  }
-                }catch(e){}
-              }}/>
-            )}
-
-            {/* ──── TAB 17: REAL-TIME COLLABORATION ──── */}
-            {tab===17&&(
-              <CollabPanel user={user} params={p} onParamChange={set} C={C}/>
             )}
 
             </>}
