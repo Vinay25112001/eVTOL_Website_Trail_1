@@ -4560,75 +4560,87 @@ export default function App(){
               // ═══════════════════════════════════════════════════
               // COST MODEL — energy economics + lifecycle
               // Based on: NREL eVTOL cost studies, Joby/Archer investor docs
+              // All AIRCRAFT costs (total for the whole vehicle per flight)
+              // Per-passenger costs derived by dividing by passenger count
               // ═══════════════════════════════════════════════════
               const flightsPerDay    = 8;
               const daysPerYear      = 330;
               const flightsPerYear   = flightsPerDay * daysPerYear;
               const tripDist_km      = p.range;
+              const nPaxCalc         = Math.max(1, Math.floor(p.payload / 90)); // passengers this flight
 
-              // Energy cost per flight
+              // Energy cost per flight (whole aircraft)
               const energyPerFlight_kWh = R.Etot;
               const electricityRate_kWh = 0.12; // $/kWh (US commercial avg 2025)
               const chargingLoss        = 0.10;  // 10% charging efficiency loss
               const energyCost_per_flight = energyPerFlight_kWh * (1+chargingLoss) * electricityRate_kWh;
 
-              // Battery lifecycle cost
-              const batteryCycles  = 800;   // NMC LiIon ~800 full cycles to 80% SoH
-              const batteryReplace = R.Wbat * 120; // $120/kg for NMC pack (2025 cell cost ~$80/kWh + integration)
-              const chargeDepth    = R.Etot / R.PackkWh; // depth of discharge per flight
+              // Battery lifecycle cost (whole aircraft)
+              const batteryCycles  = 800;
+              const batteryReplace = R.Wbat * 120; // $120/kg for NMC pack
+              const chargeDepth    = R.Etot / R.PackkWh;
               const cyclesPerFlight = chargeDepth;
               const flightsPerBattery = Math.floor(batteryCycles / cyclesPerFlight);
               const battCost_per_flight = batteryReplace / flightsPerBattery;
 
-              // Motor replacement
-              const motorLifeHours    = 3000;  // hrs MTBF for aviation PMSM
+              // Motor replacement (whole aircraft)
+              const motorLifeHours    = 3000;
               const flightDuration_hr = R.Tend / 3600;
-              const motorCost_each    = R.PmotKW * 80;   // ~$80/kW for aviation-grade motor
+              const motorCost_each    = R.PmotKW * 80;
               const motorCount        = p.nPropHover;
               const flightsPerMotor   = Math.floor(motorLifeHours / flightDuration_hr);
               const motorCost_per_flight = (motorCost_each * motorCount) / flightsPerMotor;
 
-              // Maintenance (airframe, avionics, misc)
-              const maintenanceCost_per_flight = R.MTOW * 0.0015; // ~$0.15/kg/flight (per NREL UAM cost study)
+              // Maintenance (whole aircraft)
+              const maintenanceCost_per_flight = R.MTOW * 0.0015;
 
-              // Insurance (liability, hull)
-              const aircraft_value   = R.MTOW * 800; // ~$800/kg for eVTOL (vs $2000/kg helicopter)
-              const insuranceAnnual  = aircraft_value * 0.06; // 6% hull + liability annual
+              // Insurance (whole aircraft)
+              const aircraft_value   = R.MTOW * 800;
+              const insuranceAnnual  = aircraft_value * 0.06;
               const insuranceCost_per_flight = insuranceAnnual / flightsPerYear;
 
-              // Infrastructure (vertiport landing fee)
-              const vertiportFee_per_flight = 25; // $25/landing (industry estimate)
+              // Infrastructure (vertiport landing fee — per flight, not per pax)
+              const vertiportFee_per_flight = 25;
 
-              // Pilot / operator cost (autonomous-capable but still needs remote monitor)
-              const operatorCostAnnual = 80000; // $80k/yr for one operator managing 4 aircraft
+              // Operator cost (per flight)
+              const operatorCostAnnual = 80000;
               const operatorCost_per_flight = (operatorCostAnnual/4) / flightsPerYear;
 
-              // Total cost per flight
+              // ── TOTAL per flight (whole aircraft) ──
               const totalCost_per_flight = energyCost_per_flight + battCost_per_flight
                 + motorCost_per_flight + maintenanceCost_per_flight
                 + insuranceCost_per_flight + vertiportFee_per_flight + operatorCost_per_flight;
 
-              // Cost per km
-              const cost_per_km = totalCost_per_flight / tripDist_km;
+              // ── PER PASSENGER breakdown ──
+              const costPerPax          = totalCost_per_flight / nPaxCalc;
+              const costPerPaxPerKm     = costPerPax / tripDist_km;
+              const totalCost_per_km    = totalCost_per_flight / tripDist_km; // whole aircraft $/km
 
-              // Annual revenue needed (assuming 80% load factor, $2/km target fare)
-              const loadFactor      = 0.80;
-              const farePerKm       = 2.50; // $/km (premium UAM target)
-              const revenuePerFlight= farePerKm * tripDist_km * loadFactor;
-              const annualRevenue   = revenuePerFlight * flightsPerYear;
-              const annualCost      = totalCost_per_flight * flightsPerYear;
-              const annualProfit    = annualRevenue - annualCost;
-              const profitMargin    = (annualProfit / annualRevenue) * 100;
+              // Revenue model — fare per passenger
+              const loadFactor          = 0.80;
+              const farePerPaxPerKm     = 2.50; // $/km per passenger (UAM target)
+              const farePerPax          = farePerPaxPerKm * tripDist_km;
+              const avgPaxPerFlight     = nPaxCalc * loadFactor;
+              const revenuePerFlight    = farePerPax * avgPaxPerFlight;
+              const annualRevenue       = revenuePerFlight * flightsPerYear;
+              const annualCost          = totalCost_per_flight * flightsPerYear;
+              const annualProfit        = annualRevenue - annualCost;
+              const profitMargin        = (annualProfit / annualRevenue) * 100;
 
               // Break-even
               const aircraftCost    = R.MTOW * 800;
               const paybackYears    = aircraftCost / Math.max(1, annualProfit);
 
-              // Helicopter comparison (Robinson R66: ~$4/km operating cost)
-              const helicopter_cost_per_km = 4.50;
-              const savings_vs_heli_pct    = ((helicopter_cost_per_km - cost_per_km) / helicopter_cost_per_km) * 100;
+              // Margin per passenger
+              const marginPerPax    = (revenuePerFlight - totalCost_per_flight) / avgPaxPerFlight;
 
-              // Battery degradation curve (SoH vs cycle count)
+              // Helicopter comparison — per passenger
+              const heli_pax = 4; // typical Robinson R66 carries 4 pax
+              const helicopter_cost_per_km = 4.50; // whole heli $/km
+              const heli_cost_per_pax_km   = helicopter_cost_per_km / heli_pax; // $/pax/km
+              const savings_vs_heli_pct    = ((heli_cost_per_pax_km - costPerPaxPerKm) / heli_cost_per_pax_km) * 100;
+
+              // Battery degradation curve
               const degradationData = Array.from({length:11},(_,i)=>{
                 const cycles=i*batteryCycles/10;
                 const SoH=Math.max(0.6, 1 - 0.20*(cycles/batteryCycles)**0.8);
@@ -4664,29 +4676,48 @@ export default function App(){
                   </div>
                 </div>
 
-                {/* Top KPIs */}
+                {/* Clarification banner */}
+                <div style={{padding:"8px 14px",background:`${C.blue}11`,border:`1px solid ${C.blue}33`,
+                  borderRadius:6,fontSize:11,color:C.text,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
+                  ✈️ <strong style={{color:C.blue}}>Aircraft:</strong> ${totalCost_per_flight.toFixed(0)} for the <em>whole vehicle</em> per flight ({nPaxCalc} passengers @ 90 kg/pax from payload {p.payload} kg).
+                  &nbsp;|&nbsp; 👤 <strong style={{color:C.green}}>Per Passenger:</strong> ${costPerPax.toFixed(0)} · ${costPerPaxPerKm.toFixed(2)}/km/pax.
+                  &nbsp;|&nbsp; 🚁 <strong style={{color:C.amber}}>vs Helicopter:</strong> ${(heli_cost_per_pax_km).toFixed(2)}/km/pax.
+                </div>
+
+                {/* Top KPIs — Per Passenger focus */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                  <KPI label="Total Cost / Flight" value={`$${totalCost_per_flight.toFixed(0)}`} unit=""
-                    color={C.amber} sub={`$${cost_per_km.toFixed(2)}/km`}/>
-                  <KPI label="vs Helicopter" value={`${savings_vs_heli_pct.toFixed(0)}% cheaper`} unit=""
-                    color={savings_vs_heli_pct>0?C.green:C.red}
-                    sub={`Heli: $${helicopter_cost_per_km}/km`}/>
-                  <KPI label="Annual Profit" value={`$${(annualProfit/1000).toFixed(0)}k`} unit=""
-                    color={annualProfit>0?C.green:C.red}
-                    sub={`Margin: ${profitMargin.toFixed(1)}%`}/>
-                  <KPI label="Payback Period" value={`${Math.min(99,paybackYears).toFixed(1)} yrs`} unit=""
-                    color={paybackYears<5?C.green:paybackYears<10?C.amber:C.red}
-                    sub={`Aircraft: $${(aircraftCost/1000).toFixed(0)}k`}/>
+                  <div style={{background:C.panel,border:`2px solid ${C.green}55`,borderRadius:8,padding:"12px 14px"}}>
+                    <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>👤 Cost / Passenger</div>
+                    <div style={{fontSize:22,fontWeight:800,color:C.green,fontFamily:"'DM Mono',monospace"}}>${costPerPax.toFixed(0)}</div>
+                    <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>${costPerPaxPerKm.toFixed(2)}/km/pax</div>
+                  </div>
+                  <div style={{background:C.panel,border:`2px solid ${C.amber}55`,borderRadius:8,padding:"12px 14px"}}>
+                    <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>✈️ Cost / Aircraft</div>
+                    <div style={{fontSize:22,fontWeight:800,color:C.amber,fontFamily:"'DM Mono',monospace"}}>${totalCost_per_flight.toFixed(0)}</div>
+                    <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{nPaxCalc} pax · ${totalCost_per_km.toFixed(2)}/km total</div>
+                  </div>
+                  <div style={{background:C.panel,border:`2px solid ${C.teal}55`,borderRadius:8,padding:"12px 14px"}}>
+                    <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>🚁 vs Helicopter /pax</div>
+                    <div style={{fontSize:22,fontWeight:800,color:savings_vs_heli_pct>0?C.green:C.red,fontFamily:"'DM Mono',monospace"}}>
+                      {savings_vs_heli_pct>0?"-":"+"}{Math.abs(savings_vs_heli_pct).toFixed(0)}%
+                    </div>
+                    <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Heli: ${heli_cost_per_pax_km.toFixed(2)} vs ${costPerPaxPerKm.toFixed(2)}/km/pax</div>
+                  </div>
+                  <div style={{background:C.panel,border:`2px solid ${annualProfit>0?C.green:C.red}55`,borderRadius:8,padding:"12px 14px"}}>
+                    <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>📈 Annual Profit</div>
+                    <div style={{fontSize:22,fontWeight:800,color:annualProfit>0?C.green:C.red,fontFamily:"'DM Mono',monospace"}}>${(annualProfit/1000).toFixed(0)}k</div>
+                    <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>Margin: {profitMargin.toFixed(1)}% · Payback {Math.min(99,paybackYears).toFixed(1)}y</div>
+                  </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                   <KPI label="Energy Cost/Flight" value={`$${energyCost_per_flight.toFixed(2)}`} unit=""
-                    color={C.teal} sub={`${energyPerFlight_kWh} kWh × $${electricityRate_kWh}`}/>
+                    color={C.teal} sub={`$${(energyCost_per_flight/nPaxCalc).toFixed(2)}/pax`}/>
                   <KPI label="Battery Cost/Flight" value={`$${battCost_per_flight.toFixed(2)}`} unit=""
-                    color={C.amber} sub={`${flightsPerBattery.toFixed(0)} flights/pack`}/>
-                  <KPI label="Flights/Battery Pack" value={flightsPerBattery.toFixed(0)} unit=""
-                    color={C.blue} sub={`${(chargeDepth*100).toFixed(0)}% DoD/flight`}/>
-                  <KPI label="Revenue/Flight" value={`$${revenuePerFlight.toFixed(0)}`} unit=""
-                    color={C.green} sub={`$${farePerKm}/km · ${(loadFactor*100).toFixed(0)}% LF`}/>
+                    color={C.amber} sub={`${flightsPerBattery.toFixed(0)} flights/pack · $${(battCost_per_flight/nPaxCalc).toFixed(2)}/pax`}/>
+                  <KPI label="Fare / Passenger" value={`$${farePerPax.toFixed(0)}`} unit=""
+                    color={C.green} sub={`$${farePerPaxPerKm}/km/pax · ${(loadFactor*100).toFixed(0)}% load factor`}/>
+                  <KPI label="Margin / Passenger" value={`$${marginPerPax.toFixed(0)}`} unit=""
+                    color={marginPerPax>0?C.green:C.red} sub={`at ${(loadFactor*100).toFixed(0)}% LF`}/>
                 </div>
 
                 {/* Cost breakdown + battery degradation */}
@@ -4758,14 +4789,17 @@ export default function App(){
                     <div>
                       <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Revenue & Profit</div>
                       {[
-                        ["Flights/year",`${flightsPerYear.toLocaleString()}`,C.muted],
-                        ["Revenue/flight",`$${revenuePerFlight.toFixed(0)}`,C.teal],
-                        ["Annual Revenue",`$${(annualRevenue/1000).toFixed(0)}k`,C.green],
-                        ["Annual Cost",   `$${(annualCost/1000).toFixed(0)}k`,C.red],
-                        ["Annual Profit", `$${(annualProfit/1000).toFixed(0)}k`,annualProfit>0?C.green:C.red],
-                        ["Profit Margin", `${profitMargin.toFixed(1)}%`,profitMargin>20?C.green:profitMargin>5?C.amber:C.red],
-                        ["Payback Period",`${Math.min(99,paybackYears).toFixed(1)} years`,paybackYears<5?C.green:C.amber],
-                        ["Cost vs Heli",  `${savings_vs_heli_pct.toFixed(0)}% cheaper`,savings_vs_heli_pct>0?C.green:C.red],
+                        ["Passengers/flight",`${nPaxCalc} (@ 90kg/pax)`,C.muted],
+                        ["Fare / pax",       `$${farePerPax.toFixed(0)} ($${farePerPaxPerKm}/km)`,C.teal],
+                        ["Revenue/flight",   `$${revenuePerFlight.toFixed(0)} (${(loadFactor*100).toFixed(0)}% LF)`,C.green],
+                        ["Cost/flight",      `$${totalCost_per_flight.toFixed(0)} total aircraft`,C.amber],
+                        ["Cost/pax",         `$${costPerPax.toFixed(0)} ($${costPerPaxPerKm.toFixed(2)}/km)`,C.amber],
+                        ["Annual Revenue",   `$${(annualRevenue/1000).toFixed(0)}k`,C.green],
+                        ["Annual Cost",      `$${(annualCost/1000).toFixed(0)}k`,C.red],
+                        ["Annual Profit",    `$${(annualProfit/1000).toFixed(0)}k`,annualProfit>0?C.green:C.red],
+                        ["Profit Margin",    `${profitMargin.toFixed(1)}%`,profitMargin>20?C.green:profitMargin>5?C.amber:C.red],
+                        ["Payback Period",   `${Math.min(99,paybackYears).toFixed(1)} years`,paybackYears<5?C.green:C.amber],
+                        ["vs Heli /pax/km",  `${savings_vs_heli_pct.toFixed(0)}% cheaper ($${costPerPaxPerKm.toFixed(2)} vs $${heli_cost_per_pax_km.toFixed(2)})`,savings_vs_heli_pct>0?C.green:C.red],
                       ].map(([k,v,col])=>(
                         <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.border}22`}}>
                           <span style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{k}</span>
@@ -4796,10 +4830,11 @@ export default function App(){
                   <div style={{marginTop:8,padding:"8px 12px",background:`${C.green}11`,
                     border:`1px solid ${C.green}33`,borderRadius:6,fontSize:10,
                     color:C.green,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
-                    💡 <strong>Key lever:</strong> Battery replacement is typically the largest cost driver (
-                    {(battCost_per_flight/totalCost_per_flight*100).toFixed(0)}% of total).
-                    Increasing battery SED (Cell SED slider) reduces {"\u0057"}bat → fewer replacements → lower operating cost.
-                    Energy cost at ${electricityRate_kWh}/kWh is only {(energyCost_per_flight/totalCost_per_flight*100).toFixed(0)}% of total — eVTOL economics are dominated by capital, not energy.
+                    💡 <strong>Key insight:</strong> Total aircraft cost is <strong>${totalCost_per_flight.toFixed(0)}/flight</strong> for {nPaxCalc} passengers =
+                    <strong style={{color:C.green}}> ${costPerPax.toFixed(0)}/passenger</strong> or <strong style={{color:C.green}}>${costPerPaxPerKm.toFixed(2)}/km per passenger</strong>.
+                    vs Helicopter: ${heli_cost_per_pax_km.toFixed(2)}/km/pax → eVTOL is <strong>{Math.abs(savings_vs_heli_pct).toFixed(0)}% {savings_vs_heli_pct>0?"cheaper":"more expensive"}</strong> per passenger-km.
+                    Battery replacement ({(battCost_per_flight/totalCost_per_flight*100).toFixed(0)}% of cost) is the largest driver —
+                    increasing Cell SED reduces Wbat → fewer replacements → lower $/pax.
                   </div>
                 </Panel>
               </div>
